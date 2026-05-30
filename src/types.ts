@@ -165,6 +165,17 @@ export interface CustomerOrder {
   orderDate: string;
 }
 
+export interface LinkedBankAccount {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  branch: string;
+  linkedDate: string;
+  verified: boolean;
+  balance: number;
+}
+
 export interface FarmState {
   poultryBatches: PoultryBatch[];
   fishPonds: FishPond[];
@@ -177,4 +188,5 @@ export interface FarmState {
   orders: CustomerOrder[];
   currentUserType: UserType;
   currentLanguage: 'en' | 'ne';
+  linkedBanks?: LinkedBankAccount[];
 }

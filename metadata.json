@@ -1,6 +1,6 @@
 {
   "name": "Saroja Smart Farm",
   "description": "Comprehensive agricultural and livestock management system for broiler poultry, fish ponds, pigeons, and Boer goats with offline local sync, financial bookkeeping, and AI diagnostics.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

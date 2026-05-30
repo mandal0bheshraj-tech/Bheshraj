@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FarmState, FarmReminder } from '../types';
 import { translations } from '../utils/translations';
 import { SarojaLogo } from './SarojaLogo';
@@ -15,7 +15,14 @@ import {
   Plus, 
   RefreshCw, 
   Camera, 
-  Globe
+  Globe,
+  X,
+  Download,
+  Trash2,
+  Save,
+  Sparkles,
+  CameraOff,
+  Image as ImageIcon
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -76,10 +83,183 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
     onUpdateState({ ...state, reminders: updated });
   };
 
-  const handleSimulateCamera = () => {
-    setCameraMessage(t.photoCaptured);
-    setTimeout(() => setCameraMessage(null), 4000);
+  // Real Camera & Picture Vault state structures
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [capturedImg, setCapturedImg] = useState<string | null>(null); // base64 representation
+  const [photoLabel, setPhotoLabel] = useState('Goat Profile Photo');
+  const [capturedPhotos, setCapturedPhotos] = useState<{ id: string; url: string; timestamp: string; label: string }[]>(() => {
+    try {
+      const stored = localStorage.getItem('saroja_captured_photos');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const cameraOpenedRef = useRef(false);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setCapturedImg(null);
+    setIsCapturing(true);
+    try {
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+      }
+      
+      const constraints = {
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 1024 },
+          height: { ideal: 768 }
+        }
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setMediaStream(stream);
+      
+      // Delay to ensure the DOM ref is attached cleanly
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(e => console.warn("Video play interrupted", e));
+        }
+      }, 150);
+    } catch (err: any) {
+      console.warn("Physical camera access denied or sandboxed in iframe.", err);
+      setCameraError(
+        lang === 'en' 
+          ? "Camera Access sandboxed or blocked. point/simulate a beautiful custom picture generation here to save and test offline!" 
+          : "क्यामेरा अनुमति अस्वीकार भयो। तपाईँले आफ्नो मोबाइल/पीसीमा फोटो परीक्षण गर्न सक्नुहुन्छ!"
+      );
+      setIsCapturing(false);
+    }
   };
+
+  const stopCamera = () => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      setMediaStream(null);
+    }
+    setIsCapturing(false);
+  };
+
+  const toggleFacingMode = () => {
+    setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
+  };
+
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setCapturedImg(dataUrl);
+        stopCamera();
+      }
+    } else {
+      // Sandbox fallback generator
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        const grad = ctx.createLinearGradient(0, 0, 640, 480);
+        grad.addColorStop(0, '#065f46');
+        grad.addColorStop(0.5, '#0f766e');
+        grad.addColorStop(1, '#0f172a');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 640, 480);
+        
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < 640; i += 40) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0); ctx.lineTo(i, 480); ctx.stroke();
+        }
+        for (let j = 0; j < 480; j += 40) {
+          ctx.beginPath();
+          ctx.moveTo(0, j); ctx.lineTo(640, j); ctx.stroke();
+        }
+        
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 30px Courier New, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText("SAROJA HD-CAM PRO", 320, 200);
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px system-ui';
+        ctx.fillText(`${photoLabel}`, 320, 250);
+        
+        ctx.fillStyle = '#a7f3d0';
+        ctx.font = '14px monospace';
+        ctx.fillText(`Date: ${new Date().toLocaleString()}`, 320, 300);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setCapturedImg(dataUrl);
+      }
+    }
+  };
+
+  const handleSaveCapturedPhoto = () => {
+    if (!capturedImg) return;
+    const newPhoto = {
+      id: `photo-${Date.now()}`,
+      url: capturedImg,
+      timestamp: new Date().toLocaleDateString(lang === 'ne' ? 'ne-NP' : 'en-US') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      label: photoLabel.trim() || (lang === 'en' ? 'Farm Asset Photo' : 'कृषि तस्बिर')
+    };
+
+    const updated = [newPhoto, ...capturedPhotos];
+    setCapturedPhotos(updated);
+    localStorage.setItem('saroja_captured_photos', JSON.stringify(updated));
+
+    setCameraMessage(lang === 'en' ? `✅ Photo saved as "${newPhoto.label}"` : `✅ फोटो "${newPhoto.label}" ग्यालेरीमा सुरक्षित भयो।`);
+    setShowCameraModal(false);
+    setCapturedImg(null);
+    stopCamera();
+
+    setTimeout(() => setCameraMessage(null), 5000);
+  };
+
+  const handleDeletePhoto = (id: string) => {
+    const updated = capturedPhotos.filter(p => p.id !== id);
+    setCapturedPhotos(updated);
+    localStorage.setItem('saroja_captured_photos', JSON.stringify(updated));
+  };
+
+  const handleDownloadPhotoData = (imgUrl: string, name: string) => {
+    const link = document.createElement('a');
+    link.href = imgUrl;
+    link.download = `saroja_farm_${name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  useEffect(() => {
+    if (showCameraModal) {
+      cameraOpenedRef.current = true;
+      startCamera();
+    } else if (cameraOpenedRef.current) {
+      stopCamera();
+    }
+    return () => {
+      if (cameraOpenedRef.current) {
+        stopCamera();
+      }
+    };
+  }, [showCameraModal, facingMode]);
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -98,8 +278,11 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
         </div>
         <div className="flex items-center gap-3">
           <button 
-            onClick={handleSimulateCamera}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-emerald-100 border border-emerald-300 rounded-md font-medium transition cursor-pointer text-emerald-900"
+            onClick={() => {
+              setPhotoLabel(lang === 'en' ? 'Boar Goat Profile Photo' : 'बाख्रा प्रोफाइल फोटो');
+              setShowCameraModal(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-emerald-50 dark:hover:bg-slate-800 border border-emerald-200 dark:border-slate-800 rounded-lg font-bold transition cursor-pointer text-emerald-900 dark:text-emerald-400 font-sans hover:scale-[1.02] active:scale-[0.98]"
           >
             <Camera className="w-3.5 h-3.5" />
             <span>{t.simulatePhoto}</span>
@@ -493,6 +676,86 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
         </div>
       </div>
 
+      {/* Saroja Secure Photo Vault & Asset Gallery */}
+      <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4 transition-colors">
+        <div className="flex justify-between items-center pb-3 border-b border-gray-100 dark:border-slate-800">
+          <div>
+            <h3 className="font-bold text-gray-905 dark:text-slate-100 text-sm flex items-center gap-2">
+              <Camera className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+              <span>{lang === 'en' ? "Saroja Secure Photo Gallery" : "सरोजा क्यामेरा ग्यालेरी"}</span>
+            </h3>
+            <p className="text-xs text-gray-400 dark:text-slate-500">{lang === 'en' ? "Captured goat profile photos, asset logs, and scanned receipts" : "खिचिएका बाख्राको फोटो, बिल स्क्यान तथा सामग्री अभिलेख"}</p>
+          </div>
+          <span className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/20 font-sans font-black px-2.5 py-1 rounded-full uppercase">
+            {capturedPhotos.length} {lang === 'en' ? 'Photos Secured' : 'तस्बिर सुरक्षित'}
+          </span>
+        </div>
+
+        {capturedPhotos.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-gray-250 dark:border-slate-800 rounded-xl text-gray-400 dark:text-gray-500 bg-slate-50/50 dark:bg-slate-900/50">
+            <ImageIcon className="w-8 h-8 mx-auto stroke-1 mb-2 opacity-55 text-emerald-600" />
+            <p className="text-xs font-bold">{lang === 'en' ? "Your captured farm assets or invoices will persist here." : "तपाईँले क्यामेराबाट खिचेका बाख्राको प्रोफाइल फोटो वा बिलहरू यहाँ देखिनेछन्।"}</p>
+            <button
+              onClick={() => {
+                setPhotoLabel(lang === 'en' ? 'Boar Goat Profile Photo' : 'बाख्रा प्रोफाइल फोटो');
+                setShowCameraModal(true);
+              }}
+              className="mt-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg transition"
+            >
+              {lang === 'en' ? "Try Camera Shutter Now" : "क्यामेरा परिक्षण गर्नुहोस"}
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {capturedPhotos.map((photo) => (
+              <div 
+                key={photo.id} 
+                className="group relative bg-white dark:bg-slate-950 border border-gray-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm hover:shadow transition"
+              >
+                {/* Photo Thumbnail */}
+                <div className="aspect-video w-full overflow-hidden bg-black relative">
+                  <img 
+                    src={photo.url} 
+                    alt={photo.label} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                    referrerPolicy="no-referrer"
+                  />
+                  {/* Actions overlay on hover */}
+                  <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5 p-1">
+                    <button
+                      onClick={() => handleDownloadPhotoData(photo.url, photo.label)}
+                      className="p-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[9px] font-black flex items-center gap-1 transition"
+                      title="Download image file to mobile/desktop device filesystem"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>{lang === 'en' ? 'SAVE' : 'सुरक्षित'}</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeletePhoto(photo.id)}
+                      className="p-1 px-2 bg-red-650 hover:bg-red-750 text-white rounded text-[9px] font-black transition"
+                      title="Delete instantly"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Information subtitle */}
+                <div className="p-2 space-y-0.5">
+                  <p className="text-xs font-black text-gray-800 dark:text-slate-200 truncate" title={photo.label}>
+                    {photo.label}
+                  </p>
+                  <p className="text-[9px] text-gray-400 dark:text-slate-500 font-mono flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>{photo.timestamp}</span>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Interactive Disease Detection & Feed prediction quick preview */}
       <div className="p-4 bg-gradient-to-r from-emerald-800 to-teal-900 rounded-xl text-white flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="space-y-1 md:max-w-xl">
@@ -509,6 +772,189 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
           Open AI Assistant ➜
         </button>
       </div>
+
+      {/* Premium HTML5 Camera Access Overlay Modal Box */}
+      {showCameraModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-950 rounded-3xl overflow-hidden shadow-2xl max-w-xl w-full border border-gray-250 dark:border-slate-800 transform transition scale-100 flex flex-col cursor-default font-sans animate-fade-in text-gray-900 dark:text-slate-100">
+            
+            {/* Modal Header banner */}
+            <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 p-4 text-white flex justify-between items-center border-b border-emerald-900">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-900 rounded-xl">
+                  <Camera className="w-5 h-5 text-amber-300 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-amber-300 leading-none">
+                    {lang === 'en' ? "Saroja Smart Cam" : "सरोहा क्यामेरा प्रविष्टि"}
+                  </h3>
+                  <span className="text-[10px] text-teal-300 mt-1.5 block leading-none font-bold">
+                    Hardware API Access & Sandbox Simulator
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowCameraModal(false);
+                  stopCamera();
+                }}
+                className="bg-emerald-950 hover:bg-red-950 p-1.5 rounded-full text-zinc-300 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal main content view */}
+            <div className="p-5 space-y-4">
+              
+              {cameraError && (
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 p-3 rounded-xl text-xs text-amber-80 * dark:text-amber-400">
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm">⚠️</span>
+                    <div className="space-y-1">
+                      <p className="font-bold">{lang === 'en' ? "IFrame Context Camera Restriction" : "IFrame सन्दर्भ क्यामेरा सीमा"}</p>
+                      <p className="text-[10.5px] leading-relaxed opacity-90">{cameraError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Facing camera & label row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-[10px] uppercase tracking-wider font-extrabold text-gray-500 dark:text-slate-400">
+                    {lang === 'en' ? "Description / Asset Label *" : "तस्बिर विबरण / फोटो नाम *"}
+                  </label>
+                  <input 
+                    type="text"
+                    required
+                    maxLength={28}
+                    value={photoLabel}
+                    onChange={(e) => setPhotoLabel(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-gray-300 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100"
+                    placeholder="e.g. Broiler Batch A, Boer Doe, Feed Bill"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] uppercase tracking-wider font-extrabold text-gray-500 dark:text-slate-400">
+                    {lang === 'en' ? "Physical Camera Feed Source" : "क्यामेरा सेन्सर"}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={toggleFacingMode}
+                    className="w-full bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-gray-300 dark:border-slate-800 rounded-lg px-3 py-2 text-xs font-extrabold text-slate-700 dark:text-slate-300 flex items-center justify-between transition h-[34px]"
+                  >
+                    <span>🔄 {lang === 'en' ? "Swap Lens Source:" : "लेन्स बदल्नुहोस:"}</span>
+                    <strong className="text-emerald-600 dark:text-emerald-400 capitalize">{facingMode}</strong>
+                  </button>
+                </div>
+              </div>
+
+              {/* Camera Lens Viewport panel */}
+              <div className="aspect-video w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-300 dark:border-slate-850 relative shadow-inner flex items-center justify-center">
+                {isCapturing && !capturedImg ? (
+                  <div className="relative w-full h-full">
+                    <video 
+                      ref={videoRef}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      playsInline
+                      muted
+                    />
+                    {/* Reticle guide markings to simulate camera scan frame overlay */}
+                    <div className="absolute inset-0 border border-emerald-500/10 pointer-events-none flex items-center justify-center">
+                      <div className="w-3/4 h-3/4 border border-dashed border-white/20 rounded-lg flex items-center justify-center">
+                        <span className="text-[9px] font-mono font-black tracking-widest text-emerald-400/80 bg-slate-955/70 p-1 px-2 rounded">
+                          LENS ACTIVE // ALIGN TARGET
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : capturedImg ? (
+                  <div className="w-full h-full relative">
+                    <img 
+                      src={capturedImg} 
+                      alt="Freeze Frame Capture" 
+                      className="w-full h-full object-cover animate-fade-in"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute top-2 left-2 bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow border border-emerald-500 font-mono">
+                      CAPTURED PREVIEW
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-zinc-500 p-4 text-center">
+                    <span className="text-3xl animate-bounce">📸</span>
+                    <p className="text-xs font-black text-slate-200">
+                      {lang === 'en' ? "Hardware Emulator Activated Ready" : "क्यामेरा इमुलेटर मोड सक्रिय छ"}
+                    </p>
+                    <p className="text-[10px] text-zinc-400 max-w-xs leading-relaxed">
+                      {lang === 'en' ? "Press 'Trigger Live Shutter' to freeze sample data, write watermark and test saves!" : "आफ्नो मोबाइल वा कम्प्युटरबाट सिधै फोटो खिचेर सुरक्षित गर्न ‘तस्बिर खिच्नुहोस्’ बटन थिच्नुहोस्!"}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Shutter controls footer actions */}
+              <div className="flex gap-2 justify-end items-center flex-wrap pt-2">
+                {isCapturing && !capturedImg && (
+                  <button
+                    onClick={handleCapture}
+                    className="bg-red-600 hover:bg-red-700 text-white py-2 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow transition scale-100 hover:scale-[1.03] active:scale-[0.97]"
+                  >
+                    <span>🎯 {lang === 'en' ? "Capture Photo" : "तस्बिर खिच्नुहोस्"}</span>
+                  </button>
+                )}
+
+                {(!isCapturing || capturedImg) && (
+                  <button
+                    onClick={() => {
+                      setCapturedImg(null);
+                      startCamera();
+                    }}
+                    className="bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold py-2 px-4 rounded-xl text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer border border-gray-300 dark:border-slate-800 transition"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{lang === 'en' ? "Retake / Start Cam" : "पुनः सुरु गर्नुहोस्"}</span>
+                  </button>
+                )}
+
+                {capturedImg && (
+                  <>
+                    <button
+                      onClick={() => handleDownloadPhotoData(capturedImg, photoLabel)}
+                      className="bg-amber-500 hover:bg-amber-655 font-extrabold py-2 px-4 rounded-xl text-xs text-slate-950 flex items-center gap-1.5 cursor-pointer transition shadow hover:scale-[1.02] active:scale-[0.98]"
+                      title="Download clean high-fidelity PNG asset directly onto user hardware disk"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{lang === 'en' ? "Download File" : "फाइल सुरक्षित गर्नुहोस"}</span>
+                    </button>
+                    <button
+                      onClick={handleSaveCapturedPhoto}
+                      className="bg-emerald-600 hover:bg-emerald-700 font-black py-2 px-5 rounded-xl text-xs text-white uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition shadow hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{lang === 'en' ? "Save to Secure Vault" : "ग्यालेरीमा थप्नुहोस्"}</span>
+                    </button>
+                  </>
+                )}
+
+                {!isCapturing && !capturedImg && (
+                  <button
+                    onClick={handleCapture}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2 px-5 rounded-xl text-xs uppercase cursor-pointer"
+                  >
+                    {lang === 'en' ? "Trigger Live Shutter" : "फोटो स्क्यान गर्नुहोस"}
+                  </button>
+                )}
+              </div>
+
+            </div>
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
+        </div>
+      )}
 
     </div>
   );

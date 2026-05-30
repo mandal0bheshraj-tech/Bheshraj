@@ -433,7 +433,29 @@ export const INITIAL_FARM_STATE: FarmState = {
     }
   ],
   currentUserType: "owner",
-  currentLanguage: "en"
+  currentLanguage: "en",
+  linkedBanks: [
+    {
+      id: "bank-1",
+      bankName: "Global IME Bank",
+      accountName: "Saroja Krishi Tatha Pashupalan Farm",
+      accountNumber: "0210******1245",
+      branch: "Itahari Branch, Sunsari",
+      linkedDate: "2026-05-10",
+      verified: true,
+      balance: 1450000
+    },
+    {
+      id: "bank-2",
+      bankName: "eSewa Wallet (Merchant Account)",
+      accountName: "Saroja Agro-Industrial",
+      accountNumber: "9810564269",
+      branch: "Sunsari District HQ",
+      linkedDate: "2026-05-11",
+      verified: true,
+      balance: 125400
+    }
+  ]
 };
 
 export function loadFarmState(): FarmState {
@@ -444,6 +466,30 @@ export function loadFarmState(): FarmState {
       // Fallback for role or lang if they were not stored properly
       if (!parsed.currentUserType) parsed.currentUserType = 'owner';
       if (!parsed.currentLanguage) parsed.currentLanguage = 'en';
+      if (!parsed.linkedBanks) {
+        parsed.linkedBanks = [
+          {
+            id: "bank-1",
+            bankName: "Global IME Bank",
+            accountName: "Saroja Krishi Tatha Pashupalan Farm",
+            accountNumber: "0210******1245",
+            branch: "Itahari Branch, Sunsari",
+            linkedDate: "2026-05-10",
+            verified: true,
+            balance: 1450000
+          },
+          {
+            id: "bank-2",
+            bankName: "eSewa Wallet (Merchant Account)",
+            accountName: "Saroja Agro-Industrial",
+            accountNumber: "9810564269",
+            branch: "Sunsari District HQ",
+            linkedDate: "2026-05-11",
+            verified: true,
+            balance: 125400
+          }
+        ];
+      }
       return parsed;
     }
   } catch (e) {

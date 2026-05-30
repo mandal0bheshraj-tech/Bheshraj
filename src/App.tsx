@@ -17,6 +17,12 @@ import { SalesModule } from './components/SalesModule';
 import { AIFeatures } from './components/AIFeatures';
 import { SarojaLogo } from './components/SarojaLogo';
 
+// Cloud Components
+import { AuthModal } from './components/AuthModal';
+import { ProjectManager } from './components/ProjectManager';
+import { auth, saveProjectToFirestore } from './utils/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+
 // Icon Imports
 import { 
   LayoutDashboard, 
@@ -34,7 +40,17 @@ import {
   Wifi, 
   Database,
   CloudLightning,
-  Smartphone
+  Smartphone,
+  Cloud,
+  CloudOff,
+  LogIn,
+  LogOut,
+  User,
+  FolderHeart,
+  Menu,
+  X,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 export default function App() {
@@ -45,8 +61,47 @@ export default function App() {
   const [lang, setLang] = useState<'en' | 'ne'>('en');
   const [currentUserRole, setCurrentUserRole] = useState<'Owner' | 'Manager' | 'Worker'>('Owner');
   const [showSplash, setShowSplash] = useState(true);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const stored = localStorage.getItem('saroja_theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+    return 'light';
+  });
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('saroja_theme', theme);
+  }, [theme]);
+
+  // Cloud Account State
+  const [user, setUser] = useState<any>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() => localStorage.getItem('saroja_active_project_id'));
+  const [activeProjectName, setActiveProjectName] = useState<string | null>(() => localStorage.getItem('saroja_active_project_name'));
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const t = translations[lang];
+
+  // Authenticated State Handler
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      if (!firebaseUser) {
+        // Purge session variables and default back to sandbox
+        setActiveProjectId(null);
+        setActiveProjectName(null);
+        localStorage.removeItem('saroja_active_project_id');
+        localStorage.removeItem('saroja_active_project_name');
+        const fresh = loadFarmState();
+        setState(fresh);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Dismiss splash screen on mount with elegant timing
   useEffect(() => {
@@ -56,10 +111,62 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Sync state block
+  const handleSyncProjectState = async (projId: string, customState: FarmState) => {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      await saveProjectToFirestore(user.uid, projId, activeProjectName || "Saroja Project", "", customState);
+    } catch (e) {
+      console.error("Firestore sync error", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Select project handler
+  const handleSelectProject = (project: any) => {
+    if (project) {
+      setActiveProjectId(project.projectId);
+      setActiveProjectName(project.name);
+      setState(project.state);
+      saveFarmState(project.state);
+      localStorage.setItem('saroja_active_project_id', project.projectId);
+      localStorage.setItem('saroja_active_project_name', project.name);
+    } else {
+      setActiveProjectId(null);
+      setActiveProjectName(null);
+      localStorage.removeItem('saroja_active_project_id');
+      localStorage.removeItem('saroja_active_project_name');
+      const fresh = loadFarmState();
+      setState(fresh);
+    }
+  };
+
+  // Sign out handler
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Logout failed", e);
+    }
+  };
+
   // Auto persist state transitions
   const handleUpdateState = (newState: FarmState) => {
     setState(newState);
     saveFarmState(newState);
+
+    // If logged in under an active file project, trigger cloud autosave in the background
+    if (user && activeProjectId) {
+      setIsSyncing(true);
+      saveProjectToFirestore(user.uid, activeProjectId, activeProjectName || "Saroja Project", "", newState)
+        .then(() => setIsSyncing(false))
+        .catch((e) => {
+          console.error("Autosave error", e);
+          setIsSyncing(false);
+        });
+    }
   };
 
   const [showDbResetConfirm, setShowDbResetConfirm] = useState(false);
@@ -87,14 +194,35 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-gray-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-gray-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300">
       
       {/* Upper Status Bar & Headings */}
-      <header className="sticky top-0 z-40 bg-emerald-900 border-b border-emerald-950 text-white px-4 py-3 shadow-md flex justify-between items-center flex-wrap gap-2">
+      <header className="sticky top-0 z-40 bg-emerald-900 border-b border-emerald-950 text-white px-4 py-3 shadow-md flex justify-between items-center bg-emerald-900/95 backdrop-blur-sm shadow-sm transition-colors duration-300">
         <div className="flex items-center gap-2.5">
-          <div className="p-0.5 bg-emerald-950 rounded-xl overflow-hidden border border-emerald-800/80">
-            <SarojaLogo size={42} showLabels={false} />
-          </div>
+          {/* Mobile Sidebar Hamburger Toggle Button */}
+          <button
+            onClick={() => setShowMobileSidebar(true)}
+            className="md:hidden p-1.5 -ml-1 text-teal-300 hover:text-white hover:bg-emerald-850 rounded-lg cursor-pointer transition focus:outline-none shrink-0"
+            title="Sectors Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <button
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            className="group relative p-1 bg-emerald-950 hover:bg-emerald-900 active:scale-95 rounded-xl border border-emerald-850 hover:border-amber-400/40 shrink-0 cursor-pointer overflow-visible transition duration-300 shadow flex items-center justify-center"
+            title={lang === 'en' ? "Click Logo to Switch Light/Dark Mode" : "लाइट/डार्क मोड परिवर्तन गर्न लोगोमा क्लिक गर्नुहोस्"}
+          >
+            <SarojaLogo size={42} showLabels={false} className="group-hover:scale-105 group-hover:rotate-6 transition-transform duration-300" />
+            {/* Embedded Mini Badge on the Logo background corner */}
+            <div className="absolute -bottom-1 -right-1 bg-emerald-950 border border-emerald-700 rounded-full p-0.5 shadow-md flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+              {theme === 'light' ? (
+                <Moon className="w-2.5 h-2.5 text-amber-300 fill-amber-300/10" />
+              ) : (
+                <Sun className="w-2.5 h-2.5 text-yellow-300 fill-yellow-300/10" />
+              )}
+            </div>
+          </button>
           <div>
             <h1 className="text-sm font-black tracking-wide flex items-center gap-1.5 leading-none">
               {t.appName}
@@ -106,13 +234,25 @@ export default function App() {
           </div>
         </div>
 
-        {/* Global toggles - lang picker, offline status, role switcher */}
-        <div className="flex items-center gap-3.5 flex-wrap">
-          {/* Offline local indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 text-[11px] bg-emerald-950/40 text-emerald-300 px-3 py-1 rounded-full font-semibold border border-emerald-800">
-            <span className="w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-            <span>● Offline Sync Ready</span>
-          </div>
+        {/* Global toggles - lang picker, theme selector, offline status, role switcher */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Dual-status Cloud Indicator */}
+          {!user ? (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="hidden sm:flex items-center gap-1.5 text-[10px] bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-bold border border-amber-500/20 transition cursor-pointer uppercase tracking-wider"
+            >
+              <CloudOff className="w-3 h-3 text-amber-500" />
+              <span>{lang === 'en' ? 'Sandbox Mode' : 'स्थानीय मोड'}</span>
+            </button>
+          ) : (
+            <div className="hidden sm:flex items-center gap-1.5 text-[10px] bg-emerald-950/50 text-teal-300 px-3 py-1 rounded-full font-bold border border-emerald-800">
+              <span className={`w-1.5 h-1.5 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-teal-400'}`} />
+              <span className="truncate max-w-[120px]">
+                {activeProjectName ? `☁️ ${activeProjectName}` : (lang === 'en' ? "Cloud Sync Active" : "क्लाउड सक्रिय")}
+              </span>
+            </div>
+          )}
 
           {/* Quick role selector */}
           <div className="flex bg-emerald-950/40 border border-emerald-800 rounded-lg p-0.5 text-[10px]">
@@ -121,7 +261,6 @@ export default function App() {
                 key={role}
                 onClick={() => {
                   setCurrentUserRole(role);
-                  alert(`Access Role toggled to: ${role}`);
                 }}
                 className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold transition ${
                   currentUserRole === role
@@ -137,19 +276,52 @@ export default function App() {
           {/* Core Language indicator toggle */}
           <button
             onClick={() => setLang(lang === 'en' ? 'ne' : 'en')}
-            className="bg-emerald-800 hover:bg-emerald-700 border border-emerald-700/60 text-white text-[10px] px-3 py-1 rounded-lg font-bold flex items-center gap-1 cursor-pointer"
+            className="bg-emerald-800 hover:bg-emerald-700 border border-emerald-700/60 text-white text-[10px] px-3 py-2 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors"
           >
             <Globe className="w-3.5 h-3.5 text-teal-300" />
-            <span>{lang === 'en' ? 'Nepali (नेपाली)' : 'English'}</span>
+            <span>{lang === 'en' ? 'नेपाली' : 'English'}</span>
           </button>
+
+
+
+          {/* User Session Auth Button */}
+          {!user ? (
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-500 hover:to-yellow-400 text-emerald-950 text-[10px] px-3 py-1.5 rounded-lg font-black flex items-center gap-1.5 cursor-pointer uppercase tracking-wider shadow-sm transition"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>{lang === 'en' ? 'Log In' : 'साइन इन'}</span>
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 bg-emerald-950/60 px-2.5 py-1.5 rounded-lg border border-emerald-800 text-[10px] font-bold text-teal-200">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="User Avatar" className="w-4.5 h-4.5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+                ) : (
+                  <User className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                )}
+                <span className="max-w-[70px] truncate shrink-0">
+                  {user.displayName || user.phoneNumber || user.email?.split('@')[0]}
+                </span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="bg-red-950/40 hover:bg-red-900 border border-red-900/40 hover:border-red-900 p-2 text-[10px] rounded-lg font-bold cursor-pointer transition text-red-200"
+                title={t.logout}
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main Structural view container */}
-      <div className="flex-1 flex flex-col md:flex-row">
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
         
-        {/* Left Drawer / Sidebar panel - Visible on desktop */}
-        <aside className="bg-white border-r border-gray-250 w-full md:w-60 md:shrink-0 flex flex-col justify-between py-4 select-none">
+        {/* Left Sidebar panel - Visible ONLY on desktop */}
+        <aside className="hidden md:flex bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 w-60 shrink-0 flex-col justify-between py-4 select-none transition-colors duration-300">
           <div className="space-y-1 px-3">
             {/* Saroja Royal Badge */}
             <div className="flex flex-col items-center gap-1.5 p-3.5 mb-4 bg-gradient-to-b from-emerald-950 to-emerald-900 border border-emerald-850 text-white rounded-xl shadow-inner text-center">
@@ -160,20 +332,23 @@ export default function App() {
               </div>
             </div>
 
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest px-3 block mb-2">{t.allSectors}</span>
+            <span className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-widest px-3 block mb-2">{t.allSectors}</span>
             <div className="space-y-1">
               {navigationItems.map(item => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
                 
                 return (
-                  <button
+                  <motion.button
                     key={item.id}
                     onClick={() => setCurrentTab(item.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition flex items-center justify-between gap-1.5 cursor-pointer ${
+                    whileHover={{ scale: 1.02, x: 4 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ type: "spring", stiffness: 220, damping: 25 }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between gap-1.5 cursor-pointer ${
                       isActive 
-                        ? `${item.color} text-gray-900 border-l-4 border-emerald-600` 
-                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                        ? `${item.color} dark:bg-slate-800 dark:text-white border-l-4 border-emerald-600` 
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -184,20 +359,109 @@ export default function App() {
                     {item.id === 'ai' && (
                       <span className="bg-sky-500 text-white text-[8px] font-black uppercase px-1 py-0.2 rounded leading-none shrink-0">AI</span>
                     )}
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
           </div>
 
           {/* Footer diagnostics widget inside sidebar */}
-          <div className="hidden md:block p-4 border-t border-gray-150 text-[10px] space-y-1 text-gray-450 mt-4 leading-relaxed bg-slate-50/50 m-3 rounded-lg border">
-            <span className="font-bold text-gray-700">App Metadata Ingress</span>
-            <p>Database: <strong>IndexedDB (localStorage Mirror)</strong></p>
-            <p>Connection: <strong>Local Sandbox Container</strong></p>
-            <span className="text-emerald-700 font-extrabold flex items-center gap-1 mt-1">● System Synchronized</span>
+          <div className="hidden md:block p-4 border-t border-gray-150 dark:border-slate-800 text-[10px] space-y-1 text-gray-400 dark:text-slate-400 mt-4 leading-relaxed bg-slate-50/50 dark:bg-slate-900/50 m-3 rounded-lg border dark:border-slate-800 transition-colors">
+            <span className="font-bold text-gray-700 dark:text-slate-300">App Metadata Ingress</span>
+            <p>Database: <strong className="text-gray-800 dark:text-slate-200">IndexedDB (localStorage Mirror)</strong></p>
+            <p>Connection: <strong className="text-gray-800 dark:text-slate-200">Local Sandbox Container</strong></p>
+            <span className="text-emerald-700 dark:text-emerald-400 font-extrabold flex items-center gap-1 mt-1 font-sans">● System Synchronized</span>
           </div>
         </aside>
+
+        {/* Mobile Drawer Slide-over Panel */}
+        <AnimatePresence>
+          {showMobileSidebar && (
+            <>
+              {/* Dark backdrop element */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowMobileSidebar(false)}
+                className="fixed inset-0 bg-[#022c22]/70 backdrop-blur-sm z-50 md:hidden"
+              />
+
+              {/* Slide from left panel */}
+              <motion.div
+                initial={{ x: "-100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "-100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 220 }}
+                className="fixed left-0 top-0 bottom-0 max-w-xs w-72 bg-white dark:bg-slate-900 z-50 shadow-2xl flex flex-col justify-between py-5 select-none md:hidden overflow-y-auto border-r border-gray-100 dark:border-slate-800 transition-colors"
+              >
+                <div className="space-y-1 px-4">
+                  {/* Close trigger drawer */}
+                  <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100 dark:border-slate-800">
+                    <span className="text-[10px] text-gray-400 dark:text-slate-500 font-extrabold uppercase tracking-widest">{t.allSectors}</span>
+                    <button
+                      onClick={() => setShowMobileSidebar(false)}
+                      className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition cursor-pointer"
+                    >
+                      <X className="w-5 h-5 text-gray-700 dark:text-slate-200" />
+                    </button>
+                  </div>
+
+                  {/* Saroja Royal Badge */}
+                  <div className="flex flex-col items-center gap-1.5 p-3.5 mb-5 bg-gradient-to-b from-emerald-950 to-emerald-900 border border-emerald-850 text-white rounded-2xl shadow-inner text-center">
+                    <SarojaLogo size={65} showLabels={false} />
+                    <div className="mt-1 text-center">
+                      <span className="text-[10px] font-black tracking-widest uppercase text-amber-400 block leading-none">SAROJA FIRM</span>
+                      <span className="text-[8px] text-teal-300 font-black tracking-widest uppercase mt-1 block leading-none">ESTD. 2078 BS</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    {navigationItems.map(item => {
+                      const Icon = item.icon;
+                      const isActive = currentTab === item.id;
+                      
+                      return (
+                        <motion.button
+                          key={item.id}
+                          onClick={() => {
+                            setCurrentTab(item.id);
+                            setShowMobileSidebar(false);
+                          }}
+                          whileHover={{ scale: 1.02, x: 4 }}
+                          whileTap={{ scale: 0.98 }}
+                          transition={{ type: "spring", stiffness: 220, damping: 25 }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center justify-between gap-1.5 cursor-pointer ${
+                            isActive 
+                              ? `${item.color} dark:bg-slate-800 dark:text-white border-l-4 border-emerald-600` 
+                              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4 shrink-0" />
+                            <span>{item.label}</span>
+                          </div>
+
+                          {item.id === 'ai' && (
+                            <span className="bg-sky-500 text-white text-[8px] font-black uppercase px-1 py-0.2 rounded leading-none shrink-0">AI</span>
+                          )}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Footer in mobile drawer */}
+                <div className="p-4 border-t border-gray-150 dark:border-slate-800 text-[10px] space-y-1 text-gray-400 dark:text-slate-400 mt-4 leading-relaxed bg-slate-50/50 dark:bg-slate-900/50 m-3 rounded-lg border dark:border-slate-800 transition-colors">
+                  <span className="font-bold text-gray-700 dark:text-slate-300">App Metadata Ingress</span>
+                  <p>Database: <strong className="text-gray-800 dark:text-slate-200">IndexedDB Local Cache</strong></p>
+                  <p>Security: <strong className="text-gray-800 dark:text-slate-200">Active Private Sandboxing</strong></p>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-extrabold flex items-center gap-1 mt-1 font-sans">● System Synchronized</span>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Core Main Active Component Content panel */}
         <main className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-x-hidden relative">
@@ -281,6 +545,36 @@ export default function App() {
 
                 {currentTab === 'settings' && (
                   <div className="space-y-6 max-w-2xl">
+                    {/* Cloud Backup & Projects Workspace Isolator */}
+                    {user ? (
+                      <ProjectManager
+                        currentUserId={user.uid}
+                        activeProjectId={activeProjectId}
+                        onSelectProject={handleSelectProject}
+                        lang={lang}
+                        activeState={state}
+                        onSyncState={handleSyncProjectState}
+                      />
+                    ) : (
+                      <div className="bg-gradient-to-br from-emerald-900 to-emerald-950 text-white rounded-2xl p-6 border border-emerald-800 shadow-md flex flex-col sm:flex-row justify-between items-center gap-5">
+                        <div className="space-y-1.5 text-center sm:text-left">
+                          <h3 className="font-extrabold text-base text-amber-400 flex items-center justify-center sm:justify-start gap-2">
+                            <FolderHeart className="w-5 h-5 text-amber-400" />
+                            <span>Cloud Workspace Synchronization</span>
+                          </h3>
+                          <p className="text-xs text-emerald-200 leading-relaxed max-w-sm">
+                            Join Saroja Smart Farm cloud databases! Back up livestock logs, pigeon pairs, broiler units, and financial books securely. Sign in to enable multi-project isolation today.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setShowAuthModal(true)}
+                          className="bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-500 hover:to-yellow-400 text-emerald-950 font-black text-xs px-5 py-2.5 rounded-xl shadow transition shrink-0 hover:-translate-y-0.5 uppercase tracking-wide cursor-pointer"
+                        >
+                          🔑 Log In to Cloud
+                        </button>
+                      </div>
+                    )}
+
                     {/* Brand Identity Card */}
                     <div className="bg-gradient-to-b from-white to-slate-50 border border-amber-400/30 rounded-xl p-5 shadow-md space-y-4">
                       <div className="flex justify-between items-start border-b border-gray-150 pb-3 flex-wrap gap-2">
@@ -416,7 +710,7 @@ export default function App() {
       </div>
 
       {/* Visual Bottom Nav Rail for Mobile screens specifically */}
-      <nav className="md:hidden sticky bottom-0 z-50 bg-white border-t border-gray-200/90 py-1.5 flex justify-around items-center select-none shadow">
+      <nav className="md:hidden sticky bottom-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-200/90 dark:border-slate-800 py-1.5 flex justify-around items-center select-none shadow transition-colors duration-300">
         {navigationItems.slice(0, 5).map(item => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
@@ -425,8 +719,8 @@ export default function App() {
             <button
               key={item.id}
               onClick={() => setCurrentTab(item.id)}
-              className={`flex flex-col items-center gap-1 cursor-pointer ${
-                isActive ? 'text-emerald-700' : 'text-gray-400 hover:text-gray-600'
+              className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
+                isActive ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
               }`}
             >
               <Icon className="w-5 h-5 shrink-0" />
@@ -444,8 +738,10 @@ export default function App() {
               setCurrentTab('inventory');
             }
           }}
-          className={`flex flex-col items-center gap-1 cursor-pointer ${
-            ['inventory', 'finance', 'workers', 'sales', 'ai', 'settings'].includes(currentTab) ? 'text-emerald-700' : 'text-gray-400'
+          className={`flex flex-col items-center gap-1 cursor-pointer transition-colors ${
+            ['inventory', 'finance', 'workers', 'sales', 'ai', 'settings'].includes(currentTab) 
+              ? 'text-emerald-700 dark:text-emerald-400 font-bold' 
+              : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
           }`}
         >
           <Box className="w-5 h-5" />
@@ -506,6 +802,13 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Cloud Authentication modal element */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        lang={lang}
+      />
 
     </div>
   );

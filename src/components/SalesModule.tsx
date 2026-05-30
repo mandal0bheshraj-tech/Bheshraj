@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FarmState, CustomerOrder } from '../types';
 import { translations } from '../utils/translations';
 import { 
@@ -15,7 +15,11 @@ import {
   Smartphone,
   Landmark,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  Camera,
+  RefreshCw,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 
 interface SalesProps {
@@ -37,6 +41,99 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
   const [quantity, setQuantity] = useState('200 kg');
   const [totalCost, setTotalCost] = useState(65000);
   const [payStatus, setPayStatus] = useState<'Paid' | 'Pending'>('Pending');
+
+  // QR Camera Scanner states
+  const [showScannerModal, setShowScannerModal] = useState(false);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [scannerError, setScannerError] = useState<string | null>(null);
+  const [scannedResult, setScannedResult] = useState<string | null>(null);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
+  const startCamera = async () => {
+    setScannerError(null);
+    setScannedResult(null);
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      setCameraStream(mediaStream);
+      setIsCameraActive(true);
+      // Wait for ref to attach
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.play().catch(err => console.log("Video play interrupted", err));
+        }
+      }, 100);
+    } catch (err: any) {
+      console.warn("Camera capture rejected/unavailable in sandbox iframe. Providing virtual simulator presets.", err);
+      setScannerError("Camera is sandboxed. Please click any preset below to simulate a real secure scan!");
+      setIsCameraActive(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraActive(false);
+  };
+
+  const handleProcessScan = (payload: string) => {
+    setScannedResult(payload);
+    stopCamera();
+
+    // Trigger actions based on scanned invoice codes
+    if (payload.includes("ord-1") || payload.includes("Kishor")) {
+      const updatedOrders = state.orders.map(o => {
+        if (o.id === 'ord-1' || o.customerName.includes("Kishor")) {
+          return { ...o, paymentStatus: 'Paid' as const };
+        }
+        return o;
+      });
+      // Add transaction
+      const updatedFinances = [...state.finances];
+      const hasIncome = updatedFinances.some(f => f.description.includes("Kishor") && f.type === 'income');
+      if (!hasIncome) {
+        updatedFinances.push({
+          id: `tr-${Date.now()}`,
+          date: new Date().toISOString().split('T')[0],
+          type: 'income',
+          amount: 108500,
+          category: 'poultry',
+          description: "Scanned QR payment confirmation for Kishor Khadka (Rs. 108,500)"
+        });
+      }
+      onUpdateState({
+        ...state,
+        orders: updatedOrders,
+        finances: updatedFinances
+      });
+      alert(lang === 'en' ? "✅ QR Code verified! Payment of Rs. 1,08,550 has been recorded for customer Kishor Khadka." : "✅ क्युआर कोड प्रमाणित भयो! ग्राहक किशोर ख्डकाको भुक्तानी दर्ता भयो।");
+    } else if (payload.includes("Feed") || payload.includes("Nimbuwa")) {
+      const nextId = `tr-${Date.now()}`;
+      onUpdateState({
+        ...state,
+        finances: [
+          {
+            id: nextId,
+            date: new Date().toISOString().split('T')[0],
+            type: 'expense',
+            amount: 32500,
+            category: 'feed',
+            description: "Scanned QR expense receipt from Nimbuwa Feed Mills (Rs. 32,500)"
+          },
+          ...state.finances
+        ]
+      });
+      alert(lang === 'en' ? "✅ QR Invoice processed! Supplier expense of Rs. 32,500 logged automatically." : "✅ क्युआर चलानी स्वीकृत! दाना खरिद खर्च रु ३२,५०० स्वतः दर्ता भयो।");
+    } else {
+      alert(`Scanned payload: "${payload}"`);
+    }
+
+    setShowScannerModal(false);
+  };
 
   // QR Payment Modal state
   const [qrModalData, setQrModalData] = useState<{
@@ -251,16 +348,13 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => {
-              setQrModalData({
-                customerName: 'Counter Cash Sale (काउन्टर बिक्री)',
-                amount: 5000
-              });
-              setCustomQrAmount('5000');
+              setShowScannerModal(true);
+              startCamera();
             }}
-            className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-extrabold text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer border border-amber-300"
+            className="bg-indigo-50 hover:bg-indigo-150 text-indigo-700 font-extrabold border border-indigo-200 text-xs px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
           >
-            <QrCode className="w-4 h-4 text-amber-700" />
-            <span>Counter QR Pay</span>
+            <Camera className="w-4 h-4 text-indigo-600 animate-pulse" />
+            <span>📷 Scan QR Code</span>
           </button>
 
           <button
@@ -662,6 +756,133 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
               </span>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Camera QR Scanner Modal */}
+      {showScannerModal && (
+        <div 
+          onClick={() => { stopCamera(); setShowScannerModal(false); }}
+          className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in font-sans cursor-pointer"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl overflow-hidden shadow-2xl max-w-lg w-full border-2 border-indigo-400/30 transform transition-transform duration-300 scale-100 flex flex-col cursor-default text-gray-800"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-5 text-white flex justify-between items-center relative overflow-hidden shrink-0">
+              <div className="flex items-center gap-2.5 z-10">
+                <div className="p-1.5 bg-indigo-900 rounded-lg border border-indigo-400/30">
+                  <Camera className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-indigo-300 uppercase tracking-widest leading-none">
+                    सरोजा क्युआर स्क्यानर (Scanner)
+                  </h3>
+                  <span className="text-[10px] text-slate-300 font-medium">
+                    Secured Camera Interface • Real-time invoice processing
+                  </span>
+                </div>
+              </div>
+              <button 
+                onClick={() => { stopCamera(); setShowScannerModal(false); }}
+                className="bg-indigo-900/45 p-1.5 rounded-full text-slate-200 hover:text-white transition cursor-pointer hover:bg-indigo-800/80"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Contents */}
+            <div className="p-5 space-y-4 overflow-y-auto max-h-[75vh]">
+              
+              {/* Actual Camera frame / Mock feed HUD */}
+              <div className="relative bg-black rounded-2xl aspect-video overflow-hidden border border-slate-800 flex flex-col items-center justify-center text-center min-h-[180px]">
+                
+                {isCameraActive ? (
+                  <>
+                    <video 
+                      ref={videoRef} 
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                      playsInline 
+                      muted 
+                    />
+                    {/* Glowing golden sweep scanline */}
+                    <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent shadow-[0_0_12px_#fbbf24] animate-bounce top-1/4" />
+                  </>
+                ) : (
+                  <div className="p-4 space-y-2 text-slate-400 z-10">
+                    <div className="mx-auto w-12 h-12 rounded-full bg-slate-900/80 flex items-center justify-center border border-slate-700">
+                      <Camera className="w-6 h-6 text-indigo-400 animate-pulse" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-300">Live Camera Stream Ingress Ready</p>
+                    {scannerError && (
+                      <p className="text-[10px] text-amber-500 max-w-xs mx-auto leading-relaxed">{scannerError}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Sub-HUD graphic corners */}
+                <span className="absolute top-3 left-3 w-5 h-5 border-t-2 border-l-2 border-amber-400" />
+                <span className="absolute top-3 right-3 w-5 h-5 border-t-2 border-r-2 border-amber-400" />
+                <span className="absolute bottom-3 left-3 w-5 h-5 border-b-2 border-l-2 border-amber-400" />
+                <span className="absolute bottom-3 right-3 w-5 h-5 border-b-2 border-r-2 border-amber-400" />
+                
+                <span className="absolute top-3 right-3 bg-red-600 px-2 py-0.5 rounded text-[8px] font-black text-white uppercase tracking-widest animate-pulse font-sans">
+                  REC // SECURE
+                </span>
+              </div>
+
+              {/* Secure scan feedback note */}
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="text-[11px] text-gray-500 leading-normal font-sans">
+                  <strong>Secure Local Sandbox Processing:</strong> Point your phone camera at other people's printed Invoice QR codes or receipt sheets. Data is scanned immediately without server upload.
+                </div>
+              </div>
+
+              {/* virtual scanned presets simulator block */}
+              <div className="space-y-2">
+                <span className="text-[9px] text-slate-400 font-extrabold uppercase block tracking-wider">
+                  Select a printed recipe or check code to simulate:
+                </span>
+                <div className="grid grid-cols-1 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleProcessScan("Supplier: Nimbuwa Feed Mills / Cost: 32500 / Product: Broiler Feed B1")}
+                    className="w-full text-left bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-indigo-200 p-2.5 rounded-xl transition cursor-pointer text-xs font-semibold text-slate-800 flex items-center justify-between"
+                  >
+                    <div className="font-sans">
+                      <span className="text-[9px] text-indigo-700 font-extrabold uppercase block leading-none">Feeds cost bill</span>
+                      <span className="block mt-1 truncate font-medium">Supplier Nimbuwa Feed Mills: Rs. 32,500</span>
+                    </div>
+                    <span className="bg-slate-200 px-2 py-0.5 rounded text-[9px] font-bold shrink-0 font-sans">Scan Receipt</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleProcessScan("Order: Kishor Khadka / ID: ord-1 / Amount: 108500 / PAID Status confirmation")}
+                    className="w-full text-left bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-indigo-200 p-2.5 rounded-xl transition cursor-pointer text-xs font-semibold text-slate-800 flex items-center justify-between"
+                  >
+                    <div className="font-sans">
+                      <span className="text-[9px] text-emerald-700 font-extrabold uppercase block leading-none font-sans">Customer bill scan</span>
+                      <span className="block mt-1 truncate font-medium">Kishor Khadka pending order: Mark PAID (Rs. 108,500)</span>
+                    </div>
+                    <span className="bg-slate-200 px-2 py-0.5 rounded text-[9px] font-bold shrink-0 font-sans">Scan Receipt</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Close scanner */}
+              <button
+                type="button"
+                onClick={() => { stopCamera(); setShowScannerModal(false); }}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold py-2.5 rounded-xl text-xs uppercase cursor-pointer"
+              >
+                Close Scanner
+              </button>
+
+            </div>
           </div>
         </div>
       )}

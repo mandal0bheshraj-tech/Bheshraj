@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Information about the registered farm user account.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique user authentication ID." },
+        "email": { "type": "string", "description": "User email address." },
+        "phoneNumber": { "type": "string", "description": "User phone number if registered." },
+        "displayName": { "type": "string", "description": "Display name of the user." },
+        "photoURL": { "type": "string", "description": "URL to the user's avatar image." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "FarmProject": {
+      "title": "FarmProject",
+      "description": "A specific agricultural/livestock project containing full FarmState records.",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string", "description": "Unique identifier for this project." },
+        "userId": { "type": "string", "description": "The owner of this farm project." },
+        "name": { "type": "string", "description": "Name of the farm project/subsidiary." },
+        "description": { "type": "string", "description": "Brief description or location of the farm." },
+        "state": { "type": "object", "description": "The entire structured FarmState data." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account registration/creation date." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last synchronization date." }
+      },
+      "required": ["projectId", "userId", "name", "state", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile registers."
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/FarmProject" },
+      "description": "List of farm projects belonging to a user."
+    }
+  }
+}
