@@ -57,8 +57,16 @@ export default function App() {
   const [state, setState] = useState<FarmState>(() => loadFarmState());
   const [currentTab, setCurrentTab] = useState<
     'dashboard' | 'poultry' | 'fish' | 'goat' | 'pigeon' | 'inventory' | 'finance' | 'workers' | 'sales' | 'ai' | 'settings'
-  >('dashboard');
-  const [lang, setLang] = useState<'en' | 'ne'>('en');
+  >(() => {
+    const stored = localStorage.getItem('saroja_active_tab');
+    if (stored) return stored as any;
+    return 'dashboard';
+  });
+  const [lang, setLang] = useState<'en' | 'ne'>(() => {
+    const stored = localStorage.getItem('saroja_lang');
+    if (stored === 'en' || stored === 'ne') return stored;
+    return 'en';
+  });
   const [currentUserRole, setCurrentUserRole] = useState<'Owner' | 'Manager' | 'Worker'>('Owner');
   const [showSplash, setShowSplash] = useState(true);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -67,6 +75,14 @@ export default function App() {
     if (stored === 'dark' || stored === 'light') return stored;
     return 'light';
   });
+
+  useEffect(() => {
+    localStorage.setItem('saroja_active_tab', currentTab);
+  }, [currentTab]);
+
+  useEffect(() => {
+    localStorage.setItem('saroja_lang', lang);
+  }, [lang]);
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -468,24 +484,13 @@ export default function App() {
           {/* Absolute glowing dual-tone radial gradient behind the watermark */}
           <div className="absolute inset-0 pointer-events-none select-none z-0 bg-[radial-gradient(circle_at_50%_40%,rgba(16,185,129,0.08)_0%,rgba(245,158,11,0.04)_30%,rgba(248,250,252,0)_70%)]" />
 
-          {/* Absolute subtle watermark logo with animated depth and floating parallax */}
+          {/* Absolute subtle watermark logo with high performance static placement */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden select-none z-0">
-            <motion.div
-              animate={{ 
-                y: [0, -10, 0],
-                rotate: [0, 1.5, 0],
-                scale: [0.98, 1.01, 0.98]
-              }}
-              transition={{ 
-                duration: 10, 
-                repeat: Infinity, 
-                ease: "easeInOut" 
-              }}
-              style={{ willChange: 'transform, opacity' }}
-              className="opacity-[0.05] filter blur-[0.4px] flex items-center justify-center p-8"
+            <div
+              className="opacity-[0.04] flex items-center justify-center p-8 transform scale-95"
             >
               <SarojaLogo size={580} showLabels={true} />
-            </motion.div>
+            </div>
           </div>
 
           <div className="relative z-10 w-full h-full">

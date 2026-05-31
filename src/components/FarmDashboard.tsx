@@ -22,7 +22,8 @@ import {
   Save,
   Sparkles,
   CameraOff,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ArrowLeft
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -817,10 +818,10 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
       {/* Premium HTML5 Camera Access Overlay Modal Box */}
       {showCameraModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-950 rounded-3xl overflow-hidden shadow-2xl max-w-xl w-full border border-gray-250 dark:border-slate-800 transform transition scale-100 flex flex-col cursor-default font-sans animate-fade-in text-gray-900 dark:text-slate-100">
+          <div className="bg-white dark:bg-slate-950 rounded-3xl overflow-hidden shadow-2xl max-w-xl w-full max-h-[92vh] border border-gray-250 dark:border-slate-800 transform transition scale-100 flex flex-col cursor-default font-sans animate-fade-in text-gray-900 dark:text-slate-100">
             
             {/* Modal Header banner */}
-            <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 p-4 text-white flex justify-between items-center border-b border-emerald-900">
+            <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 p-4 text-white flex justify-between items-center border-b border-emerald-900 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-emerald-900 rounded-xl">
                   <Camera className="w-5 h-5 text-amber-300 animate-pulse" />
@@ -845,8 +846,8 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
               </button>
             </div>
 
-            {/* Modal main content view */}
-            <div className="p-5 space-y-4">
+            {/* Modal main content view with scroll container */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
               
               {cameraError && (
                 <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 p-3 rounded-xl text-xs text-amber-80 * dark:text-amber-400">
@@ -979,57 +980,71 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
               </div>
 
               {/* Shutter controls footer actions */}
-              <div className="flex gap-2 justify-end items-center flex-wrap pt-2">
-                {isCapturing && !capturedImg && (
-                  <button
-                    onClick={handleCapture}
-                    className="bg-red-600 hover:bg-red-700 text-white py-2 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow transition scale-100 hover:scale-[1.03] active:scale-[0.97]"
-                  >
-                    <span>🎯 {lang === 'en' ? "Capture Photo" : "तस्बिर खिच्नुहोस्"}</span>
-                  </button>
-                )}
+              <div className="flex gap-3 justify-between items-center flex-wrap pt-3 border-t border-slate-100 dark:border-slate-900 w-full mt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCameraModal(false);
+                    stopCamera();
+                  }}
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-extrabold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer border border-transparent"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>{lang === 'en' ? "Back/Cancel" : "पछाडि जानुहोस"}</span>
+                </button>
 
-                {(!isCapturing || capturedImg) && (
-                  <button
-                    onClick={() => {
-                      setCapturedImg(null);
-                      startCamera();
-                    }}
-                    className="bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold py-2 px-4 rounded-xl text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer border border-gray-300 dark:border-slate-800 transition"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>{lang === 'en' ? "Retake / Start Cam" : "पुनः सुरु गर्नुहोस्"}</span>
-                  </button>
-                )}
-
-                {capturedImg && (
-                  <>
+                <div className="flex gap-2 items-center flex-wrap">
+                  {isCapturing && !capturedImg && (
                     <button
-                      onClick={() => handleDownloadPhotoData(capturedImg, photoLabel)}
-                      className="bg-amber-500 hover:bg-amber-655 font-extrabold py-2 px-4 rounded-xl text-xs text-slate-950 flex items-center gap-1.5 cursor-pointer transition shadow hover:scale-[1.02] active:scale-[0.98]"
-                      title="Download clean high-fidelity PNG asset directly onto user hardware disk"
+                      onClick={handleCapture}
+                      className="bg-red-650 hover:bg-red-755 text-white py-2.5 px-5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow transition scale-100 hover:scale-[1.03] active:scale-[0.97]"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>{lang === 'en' ? "Download File" : "फाइल सुरक्षित गर्नुहोस"}</span>
+                      <span>🎯 {lang === 'en' ? "Capture Photo" : "तस्बिर खिच्नुहोस्"}</span>
                     </button>
-                    <button
-                      onClick={handleSaveCapturedPhoto}
-                      className="bg-emerald-600 hover:bg-emerald-700 font-black py-2 px-5 rounded-xl text-xs text-white uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition shadow hover:scale-[1.02] active:scale-[0.98]"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      <span>{lang === 'en' ? "Save to Secure Vault" : "ग्यालेरीमा थप्नुहोस्"}</span>
-                    </button>
-                  </>
-                )}
+                  )}
 
-                {!isCapturing && !capturedImg && (
-                  <button
-                    onClick={handleCapture}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2 px-5 rounded-xl text-xs uppercase cursor-pointer"
-                  >
-                    {lang === 'en' ? "Trigger Live Shutter" : "फोटो स्क्यान गर्नुहोस"}
-                  </button>
-                )}
+                  {(!isCapturing || capturedImg) && (
+                    <button
+                      onClick={() => {
+                        setCapturedImg(null);
+                        startCamera();
+                      }}
+                      className="bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold py-2.5 px-4 rounded-xl text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer border border-gray-300 dark:border-slate-800 transition"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>{lang === 'en' ? "Retake / Start Cam" : "पुनः सुरु गर्नुहोस्"}</span>
+                    </button>
+                  )}
+
+                  {capturedImg && (
+                    <>
+                      <button
+                        onClick={() => handleDownloadPhotoData(capturedImg, photoLabel)}
+                        className="bg-amber-500 hover:bg-amber-600 font-extrabold py-2.5 px-4 rounded-xl text-xs text-slate-950 flex items-center gap-1.5 cursor-pointer transition shadow hover:scale-[1.02] active:scale-[0.98]"
+                        title="Download clean high-fidelity PNG asset directly onto hardware disk"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? "Download File" : "फाइल डाउनलोड"}</span>
+                      </button>
+                      <button
+                        onClick={handleSaveCapturedPhoto}
+                        className="bg-emerald-600 hover:bg-emerald-700 font-black py-2.5 px-5 rounded-xl text-xs text-white uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition shadow hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>{lang === 'en' ? "Save to Secure Vault" : "ग्यालेरीमा थप्नुहोस्"}</span>
+                      </button>
+                    </>
+                  )}
+
+                  {!isCapturing && !capturedImg && (
+                    <button
+                      onClick={handleCapture}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-5 rounded-xl text-xs uppercase cursor-pointer"
+                    >
+                      {lang === 'en' ? "Trigger Live Shutter" : "तस्बिर स्क्यान गर्नुहोस"}
+                    </button>
+                  )}
+                </div>
               </div>
 
             </div>
