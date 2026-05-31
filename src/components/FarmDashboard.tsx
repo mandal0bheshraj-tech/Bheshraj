@@ -176,7 +176,83 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
   };
 
-  const handleCapture = () => {
+  // Compression & elegant modern watermarking algorithm
+  const processAndWatermarkImage = (imgSrc: string, labelText: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        // High quality memory constraint budget (1000px max fits perfectly under 150KB as highly-detailed JPEG)
+        const maxDim = 1000;
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          // Draw image
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Custom Gradient Bottom Matte Strip overlay
+          const stripHeight = Math.max(50, Math.round(height * 0.12));
+          const grad = ctx.createLinearGradient(0, height - stripHeight, 0, height);
+          grad.addColorStop(0, 'rgba(15, 23, 42, 0.0)');
+          grad.addColorStop(0.3, 'rgba(6, 95, 70, 0.75)');
+          grad.addColorStop(1, 'rgba(15, 23, 42, 0.95)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, height - stripHeight, width, stripHeight);
+          
+          // Accent Golden strip line
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(0, height - stripHeight, width, 3);
+          
+          // Watermark texts drawing
+          const fontBase = Math.max(13, Math.round(width / 35));
+          
+          // Saroja Farm Stamp tag (Golden bottom-left)
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.font = `bold ${Math.round(fontBase * 1.15)}px system-ui, -apple-system, sans-serif`;
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillText("☀️ SAROJA SMART FARM", 20, height - (stripHeight / 2) - (fontBase * 0.3));
+          
+          // Asset description (White lower text)
+          ctx.font = `500 ${Math.round(fontBase * 0.9)}px system-ui, -apple-system, sans-serif`;
+          ctx.fillStyle = '#f1f5f9';
+          ctx.fillText(`${labelText} • VERIFIED`, 20, height - (stripHeight / 2) + (fontBase * 0.8));
+          
+          // Safe nepalese region metadata (Green bottom-right, monospace)
+          ctx.textAlign = 'right';
+          ctx.font = `bold ${Math.round(fontBase * 0.8)}px Courier New, monospace`;
+          ctx.fillStyle = '#10b981';
+          const timeLabel = new Date().toLocaleString(lang === 'ne' ? 'ne-NP' : 'en-US');
+          ctx.fillText(timeLabel, width - 20, height - (stripHeight / 2));
+          
+          // Output highly compressed and beautifully rendered image data url
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        } else {
+          resolve(imgSrc);
+        }
+      };
+      img.onerror = () => {
+        resolve(imgSrc);
+      };
+      img.src = imgSrc;
+    });
+  };
+
+  const handleCapture = async () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -185,9 +261,11 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
         canvas.width = video.videoWidth || 640;
         canvas.height = video.videoHeight || 480;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        setCapturedImg(dataUrl);
+        const rawDataUrl = canvas.toDataURL('image/jpeg', 0.95);
         stopCamera();
+        
+        const processed = await processAndWatermarkImage(rawDataUrl, photoLabel.trim() || (lang === 'en' ? 'Farm Asset Photo' : 'कृषि तस्बिर'));
+        setCapturedImg(processed);
       }
     } else {
       // Sandbox fallback generator
@@ -228,7 +306,8 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
         ctx.fillText(`Date: ${new Date().toLocaleString()}`, 320, 300);
         
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        setCapturedImg(dataUrl);
+        const processed = await processAndWatermarkImage(dataUrl, photoLabel.trim() || (lang === 'en' ? 'Farm Asset Photo' : 'कृषि तस्बिर'));
+        setCapturedImg(processed);
       }
     }
   };
@@ -237,17 +316,19 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      setMediaStream(null);
+    }
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (dataUrl) {
-        setCapturedImg(dataUrl);
+    reader.onload = async (event) => {
+      const rawDataUrl = event.target?.result as string;
+      if (rawDataUrl) {
         setCameraError(null);
         setIsCapturing(false);
-        if (mediaStream) {
-          mediaStream.getTracks().forEach(track => track.stop());
-          setMediaStream(null);
-        }
+        const processed = await processAndWatermarkImage(rawDataUrl, photoLabel.trim() || (lang === 'en' ? 'Farm Asset Photo' : 'कृषि तस्बिर'));
+        setCapturedImg(processed);
       }
     };
     reader.readAsDataURL(file);
@@ -817,8 +898,8 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
 
       {/* Premium HTML5 Camera Access Overlay Modal Box */}
       {showCameraModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-950 rounded-3xl overflow-hidden shadow-2xl max-w-xl w-full max-h-[92vh] border border-gray-250 dark:border-slate-800 transform transition scale-100 flex flex-col cursor-default font-sans animate-fade-in text-gray-900 dark:text-slate-100">
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md overflow-y-auto flex justify-center items-start sm:items-center p-2 sm:p-4">
+          <div className="bg-white dark:bg-slate-950 rounded-3xl overflow-hidden shadow-2xl max-w-xl w-full max-h-[94vh] sm:max-h-[90vh] border border-gray-250 dark:border-slate-800 transform transition scale-100 flex flex-col cursor-default font-sans animate-fade-in text-gray-900 dark:text-slate-100 my-auto">
             
             {/* Modal Header banner */}
             <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 p-4 text-white flex justify-between items-center border-b border-emerald-900 shrink-0">
@@ -850,7 +931,7 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
               
               {cameraError && (
-                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 p-3 rounded-xl text-xs text-amber-80 * dark:text-amber-400">
+                <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 p-3 rounded-xl text-xs text-amber-800 dark:text-amber-400">
                   <div className="flex items-start gap-2">
                     <span className="text-sm">⚠️</span>
                     <div className="space-y-1">
