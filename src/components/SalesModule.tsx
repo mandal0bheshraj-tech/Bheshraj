@@ -55,7 +55,24 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
     setScannerError(null);
     setScannedResult(null);
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const constraintOptions = [
+        { video: { facingMode: 'environment' } },
+        { video: { facingMode: 'user' } },
+        { video: true }
+      ];
+      let mediaStream: MediaStream | null = null;
+      let lastError = null;
+      for (const constraints of constraintOptions) {
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (mediaStream) break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      if (!mediaStream) {
+        throw lastError || new Error("No device camera reachable");
+      }
       setCameraStream(mediaStream);
       setIsCameraActive(true);
       // Wait for ref to attach

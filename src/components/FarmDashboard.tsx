@@ -108,35 +108,56 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
     setCameraError(null);
     setCapturedImg(null);
     setIsCapturing(true);
-    try {
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-      }
-      
-      const constraints = {
+    
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+    }
+
+    const constraintOptions = [
+      {
         video: {
           facingMode: { ideal: facingMode },
-          width: { ideal: 1024 },
-          height: { ideal: 768 }
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         }
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      },
+      {
+        video: {
+          facingMode: { ideal: facingMode }
+        }
+      },
+      {
+        video: true
+      }
+    ];
+
+    let stream: MediaStream | null = null;
+    let lastError: any = null;
+
+    for (const constraints of constraintOptions) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (stream) break;
+      } catch (err) {
+        lastError = err;
+        console.warn("Camera constraint failed, trying next fallback...", constraints, err);
+      }
+    }
+
+    if (stream) {
       setMediaStream(stream);
-      
-      // Delay to ensure the DOM ref is attached cleanly
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.play().catch(e => console.warn("Video play interrupted", e));
         }
       }, 150);
-    } catch (err: any) {
-      console.warn("Physical camera access denied or sandboxed in iframe.", err);
+    } else {
+      console.warn("All camera fallbacks failed.", lastError);
       setCameraError(
         lang === 'en' 
-          ? "Camera Access sandboxed or blocked. point/simulate a beautiful custom picture generation here to save and test offline!" 
-          : "क्यामेरा अनुमति अस्वीकार भयो। तपाईँले आफ्नो मोबाइल/पीसीमा फोटो परीक्षण गर्न सक्नुहुन्छ!"
+          ? "Live stream blocked or iframe sandboxed. Don't worry! Use the powerful 'Mobile Phone Camera / Choose Photo' option below which works flawlessly on any device!" 
+          : "लाइभ स्ट्रिम ब्लक भयो वा क्यामेरा अनुमति चाहिएको छ। चिन्ता नगर्नुहोस्! तल रहेको 'नयाँ फोटो खिच्नुहोस् / ग्यालरी' प्रयोग गर्नुहोस् जसले कुनै पनि मोबाइल वा उपकरणमा मज्जाले काम गर्छ!"
       );
       setIsCapturing(false);
     }
@@ -209,6 +230,26 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
         setCapturedImg(dataUrl);
       }
     }
+  };
+
+  const handleNativeCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        setCapturedImg(dataUrl);
+        setCameraError(null);
+        setIsCapturing(false);
+        if (mediaStream) {
+          mediaStream.getTracks().forEach(track => track.stop());
+          setMediaStream(null);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveCapturedPhoto = () => {
@@ -894,6 +935,47 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Mobile Native Camera & Gallery Uplinks */}
+              <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
+                <div className="space-y-1 text-center md:text-left">
+                  <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 font-extrabold uppercase px-2.5 py-0.5 rounded-full tracking-wider">
+                    {lang === 'en' ? "📱 Direct Camera Bypass" : "📱 मोबाइल क्यामेरा बाईपास"}
+                  </span>
+                  <p className="text-xs font-bold text-gray-800 dark:text-slate-100 mt-1">
+                    {lang === 'en' ? "Want to snap a real live photo with your mobile lens?" : "आफ्नो मोबाइलको मुख्य क्यामेरा प्रयोग गरेर वास्तविक फोटो खिच्न चाहनुहुन्छ?"}
+                  </p>
+                  <p className="text-[10.5px] font-medium leading-relaxed text-gray-500 dark:text-slate-400">
+                    {lang === 'en' 
+                      ? "Iframe environment WebRTC streams might be blocked. Click below to take a photo using your phone's native camera immediately!" 
+                      : "आईफ्रेम वातावरणमा लाइभ क्यामेरा ब्लक हुन सक्छ। आफ्नो मोबाइलको मुख्य क्यामेरा खोल्न तल क्लिक गर्नुहोस्!"
+                    }
+                  </p>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-center w-full md:w-auto">
+                  <label className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-extrabold text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl cursor-pointer transition flex items-center gap-1.5 shadow">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>{lang === 'en' ? "Take Live Photo" : "क्यामेरा खिच्नुहोस"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleNativeCameraCapture}
+                    />
+                  </label>
+                  <label className="bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 active:scale-95 text-slate-800 dark:text-slate-200 font-extrabold text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl cursor-pointer transition flex items-center gap-1.5 shadow border border-slate-300 dark:border-slate-700">
+                    <Download className="rotate-180 w-3.5 h-3.5" />
+                    <span>{lang === 'en' ? "Upload Gallery" : "ग्यालरीबाट"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleNativeCameraCapture}
+                    />
+                  </label>
+                </div>
               </div>
 
               {/* Shutter controls footer actions */}
