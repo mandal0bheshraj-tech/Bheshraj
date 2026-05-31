@@ -85,12 +85,78 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
   };
 
   // Real Camera & Picture Vault state structures
-  const [showCameraModal, setShowCameraModal] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [showCameraModal, setShowCameraModal] = useState(() => {
+    try {
+      return sessionStorage.getItem('saroja_cam_modal_active') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isCapturing, setIsCapturing] = useState(() => {
+    try {
+      return sessionStorage.getItem('saroja_cam_capturing') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>(() => {
+    try {
+      return (sessionStorage.getItem('saroja_cam_facing') as any) || 'environment';
+    } catch {
+      return 'environment';
+    }
+  });
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [capturedImg, setCapturedImg] = useState<string | null>(null); // base64 representation
-  const [photoLabel, setPhotoLabel] = useState('Goat Profile Photo');
+  const [capturedImg, setCapturedImg] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('saroja_cam_captured_image');
+    } catch {
+      return null;
+    }
+  }); // base64 representation
+  const [photoLabel, setPhotoLabel] = useState(() => {
+    try {
+      return sessionStorage.getItem('saroja_cam_photo_label') || 'Goat Profile Photo';
+    } catch {
+      return 'Goat Profile Photo';
+    }
+  });
+
+  // Track and write camera state transitions in sessionStorage to prevent mobile app restart losses
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('saroja_cam_modal_active', showCameraModal ? 'true' : 'false');
+    } catch {}
+  }, [showCameraModal]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('saroja_cam_capturing', isCapturing ? 'true' : 'false');
+    } catch {}
+  }, [isCapturing]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('saroja_cam_facing', facingMode);
+    } catch {}
+  }, [facingMode]);
+
+  useEffect(() => {
+    try {
+      if (capturedImg) {
+        sessionStorage.setItem('saroja_cam_captured_image', capturedImg);
+      } else {
+        sessionStorage.removeItem('saroja_cam_captured_image');
+      }
+    } catch {}
+  }, [capturedImg]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('saroja_cam_photo_label', photoLabel);
+    } catch {}
+  }, [photoLabel]);
+
   const [capturedPhotos, setCapturedPhotos] = useState<{ id: string; url: string; timestamp: string; label: string }[]>(() => {
     try {
       const stored = localStorage.getItem('saroja_captured_photos');
@@ -930,6 +996,29 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
             {/* Modal main content view with scroll container */}
             <div className="p-5 space-y-4 overflow-y-auto flex-1">
               
+              {/* Iframe detection breakout notice inside Camera Modal */}
+              {window.self !== window.top && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-950 rounded-xl p-3.5 space-y-2 text-xs">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                    <span className="text-sm animate-pulse">📷</span>
+                    <span>{lang === 'en' ? "Browser WebRTC Camera Sandboxed" : "ब्राउजर क्यामेरा आईफ्रेम भित्र सीमित"}</span>
+                  </div>
+                  <p className="text-[10.5px] leading-relaxed text-rose-700 font-sans">
+                    {lang === 'en'
+                      ? "Modern security standards block HTML5 WebRTC camera access within sandboxed previews in AI Studio. Tap 'Open in New Tab' to bypass these restrictions entirely and gain direct camera access, or use the file uploader below!"
+                      : "आईफ्रेम विन्डो (प्रिभ्यु) भित्र सुरक्षित क्यामेरा अनुमतिहरू ब्राउजरले रोकेको हुन्छ। सिधै क्यामेरा खोल्नको लागि 'एप नयाँ ट्याबमा खोल्नुहोस्' थिच्नुहोस् वा तलको 'तस्बिर अपलोड' प्रयोग गर्नुहोस्!"}
+                  </p>
+                  <a
+                    href={window.location.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center w-full px-4 py-2 bg-rose-655 hover:bg-rose-700 text-white font-extrabold text-[11px] rounded-lg shadow-sm transition uppercase tracking-wider text-center cursor-pointer font-sans"
+                  >
+                    🚀 {lang === 'en' ? "Open App in New Tab" : "एप नयाँ ट्याबमा खोल्नुहोस्"}
+                  </a>
+                </div>
+              )}
+
               {cameraError && (
                 <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 p-3 rounded-xl text-xs text-amber-800 dark:text-amber-400">
                   <div className="flex items-start gap-2">

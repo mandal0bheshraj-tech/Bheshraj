@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signInWithPhoneNumber, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
@@ -77,10 +79,72 @@ export function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
 
   if (!isOpen) return null;
 
+  // 0. Helpers for environment detection to dodge sandboxes & popup blockers
+  const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  };
+
+  const isInsideIframe = () => {
+    return window.self !== window.top;
+  };
+
+  // Handle redirect result on mount (important if page reloaded from Google Redirect login)
+  useEffect(() => {
+    if (isOpen) {
+      const checkRedirectResult = async () => {
+        try {
+          const result = await getRedirectResult(auth);
+          if (result && result.user) {
+            const user = result.user;
+            await ensureUserProfile(user.uid, user.email, user.phoneNumber, user.displayName, user.photoURL);
+            setSuccessMessage(lang === 'en' ? "Successfully logged in with Google!" : "गुगल रिडाइरेक्ट मार्फत सफलतापूर्वक लगइन भयो!");
+            setTimeout(() => {
+              onClose();
+            }, 1200);
+          }
+        } catch (error: any) {
+          console.error("Redirect check failed:", error);
+          if (error.code !== 'auth/web-storage-unsupported') {
+            setErrorMessage(error.message || "Failed to complete Google Redirect Sign-In.");
+          }
+        }
+      };
+      checkRedirectResult();
+    }
+  }, [isOpen]);
+
   // 1. Google Account Login
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setErrorMessage(null);
+    
+    const isMobile = isMobileDevice();
+    const isIframe = isInsideIframe();
+
+    if (isIframe) {
+      setErrorMessage(
+        lang === 'en' 
+          ? "Iframe restriction active! Sandbox policy blocks Google popups inside AI Studio. Please tap the button below to 'Open in New Tab' to sign in with Google or use Email & Password instead!"
+          : "आईफ्रेम प्रतिबन्ध सक्रिय छ! ब्राउजरले आईफ्रेम भित्र गुगल पपअप रोकेको छ। पूर्ण सुविधाको लागि तलको 'नयाँ ट्याबमा खोल्नुहोस्' थिच्नुहोस् वा 'इमेल र पासवर्ड' प्रयोग गर्नुहोस्!"
+      );
+      setLoading(false);
+      return;
+    }
+
+    // On standard mobile device browser, use redirect natively to dodge popup blockers
+    if (isMobile) {
+      try {
+        setSuccessMessage(lang === 'en' ? "Redirecting to Google Secure Authentication..." : "गुगल सुरक्षित प्रमाणीकरणमा रिडाइरेक्ट हुँदैछ...");
+        await signInWithRedirect(auth, googleProvider);
+      } catch (error: any) {
+        console.error("Redirect signin error: ", error);
+        setErrorMessage(error.message || "Redirect sign-in failed.");
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Desktop popup try with redirect fallback if blocked
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
@@ -90,10 +154,28 @@ export function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
         onClose();
       }, 1200);
     } catch (error: any) {
-      console.error(error);
-      setErrorMessage(error.message || "Failed to log in with Google.");
-    } finally {
-      setLoading(false);
+      console.error("Popup failed, attempting redirect:", error);
+      if (
+        error.code === 'auth/popup-blocked' || 
+        error.code === 'auth/popup-closed-by-user' || 
+        error.code === 'auth/cancelled-popup-request'
+      ) {
+        try {
+          setSuccessMessage(lang === 'en' ? "Popup blocked. Redirecting to Google..." : "पपअप रोकियो। गुगलमा रिडाइरेक्ट हुँदैछ...");
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirectError: any) {
+          console.error("Double failure: ", redirectError);
+          setErrorMessage(
+            lang === 'en'
+              ? "Google Authentication was closed or blocked. Please enable cookies/popups or use Email login."
+              : "गुगल लगइन विन्डो बन्द वा रोकिएको छ। कृपया पपअप अनुमति दिनुहोस् वा इमेल प्रयोग गर्नुहोस्।"
+          );
+          setLoading(false);
+        }
+      } else {
+        setErrorMessage(error.message || "Failed to log in with Google.");
+        setLoading(false);
+      }
     }
   };
 
@@ -293,6 +375,31 @@ export function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
               <p className="text-[11px] text-gray-500 text-center font-medium leading-relaxed">
                 {t.localSandboxDesc}
               </p>
+
+              {/* Iframe detection notice inside authentication selector */}
+              {window.self !== window.top && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-950 rounded-xl p-3.5 space-y-2 text-left shrink-0">
+                  <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                    <span className="text-sm animate-bounce">📱</span>
+                    <strong className="text-[11px] font-extrabold uppercase tracking-wide">
+                      {lang === 'en' ? "Iframe Restrictions Active" : "आईफ्रेम प्रतिबन्धहरू सक्रिय छन्"}
+                    </strong>
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-rose-700 font-semibold font-sans">
+                    {lang === 'en'
+                      ? "Modern browser security policies block popups, third-party cookies, and Google Sign-In inside sandboxed frames (preview window). Break out of the sandbox to use Google Sign-In and secure sync flawlessly!"
+                      : "ब्राउजर सुरक्षा नीतिहरूले प्रिभ्यु विन्डो (आईफ्रेम) भित्र गुगल पपअप र कुकीहरू रोकेका छन्। पूर्ण सुविधायुक्त गुगल लगइन र सिंक प्रयोग गर्नको लागि तल बटन थिचेर नयाँ ट्याबमा खोल्नुहोस्!"}
+                  </p>
+                  <a
+                    href={window.location.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center w-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] rounded-lg shadow-sm transition uppercase tracking-wider text-center cursor-pointer font-sans"
+                  >
+                    🚀 {lang === 'en' ? "Open App in New Tab" : "एप नयाँ ट्याबमा खोल्नुहोस्"}
+                  </a>
+                </div>
+              )}
 
               {/* Dynamic educational notice for external devices / domains */}
               <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3.5 space-y-1.5 text-left shrink-0">
