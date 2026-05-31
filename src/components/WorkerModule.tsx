@@ -17,7 +17,7 @@ export function WorkerModule({ state, onUpdateState, lang }: WorkerProps) {
   // New Worker State
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [salary, setSalary] = useState(18000);
+  const [salary, setSalary] = useState<number | ''>('');
   const [role, setRole] = useState<'Manager' | 'Worker'>('Worker');
 
   // Task dispatcher state
@@ -28,11 +28,13 @@ export function WorkerModule({ state, onUpdateState, lang }: WorkerProps) {
     e.preventDefault();
     if (!name || !phone) return;
 
+    const numericSalary = salary === '' ? 0 : Number(salary);
+
     const newWorker: WorkerProfile = {
       id: `wrk-${Date.now()}`,
       name,
       phoneNumber: phone,
-      salary,
+      salary: numericSalary,
       role,
       assignedTasks: [],
       attendance: []
@@ -46,6 +48,7 @@ export function WorkerModule({ state, onUpdateState, lang }: WorkerProps) {
     setShowWorkerForm(false);
     setName('');
     setPhone('');
+    setSalary('');
   };
 
   const handleUpdateAttendance = (workerId: string, status: 'Present' | 'Absent' | 'On Leave') => {
@@ -176,7 +179,7 @@ export function WorkerModule({ state, onUpdateState, lang }: WorkerProps) {
             <input 
               type="number" 
               value={salary}
-              onChange={(e) => setSalary(Number(e.target.value))}
+              onChange={(e) => setSalary(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-950 font-mono"
             />
           </div>

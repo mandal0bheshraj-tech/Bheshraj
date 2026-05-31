@@ -17,26 +17,30 @@ export function InventoryModule({ state, onUpdateState, lang }: InventoryProps) 
   // New Item State
   const [category, setCategory] = useState<'feed' | 'medicine' | 'equipment'>('feed');
   const [name, setName] = useState('');
-  const [stockLevel, setStockLevel] = useState(20);
+  const [stockLevel, setStockLevel] = useState<number | ''>('');
   const [unit, setUnit] = useState('Sacks (50kg)');
   const [supplier, setSupplier] = useState('');
-  const [cost, setCost] = useState(3200);
-  const [reorderLevel, setReorderLevel] = useState(10);
+  const [cost, setCost] = useState<number | ''>('');
+  const [reorderLevel, setReorderLevel] = useState<number | ''>('');
   const [expiryDate, setExpiryDate] = useState('');
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) return;
 
+    const numericStock = stockLevel === '' ? 0 : Number(stockLevel);
+    const numericCost = cost === '' ? 0 : Number(cost);
+    const numericReorder = reorderLevel === '' ? 0 : Number(reorderLevel);
+
     const newItem: InventoryItem = {
       id: `inv-${Date.now()}`,
       category,
       name,
-      currentStock: stockLevel,
+      currentStock: numericStock,
       unit,
       supplier,
-      purchaseCost: cost,
-      reorderPoint: reorderLevel,
+      purchaseCost: numericCost,
+      reorderPoint: numericReorder,
       expiryDate: expiryDate || undefined
     };
 
@@ -45,9 +49,9 @@ export function InventoryModule({ state, onUpdateState, lang }: InventoryProps) 
       id: `tr-${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
       type: 'expense' as const,
-      amount: cost,
+      amount: numericCost,
       category: category as any, // match 'feed'/'medicine'/'other'
-      description: `Bought ${stockLevel} ${unit} of ${name} from ${supplier}`
+      description: `Bought ${numericStock} ${unit} of ${name} from ${supplier}`
     };
 
     onUpdateState({
@@ -59,6 +63,9 @@ export function InventoryModule({ state, onUpdateState, lang }: InventoryProps) 
     setShowItemForm(false);
     setName('');
     setSupplier('');
+    setStockLevel('');
+    setCost('');
+    setReorderLevel('');
   };
 
   const handleModifyQuantity = (id: string, delta: number) => {
@@ -142,7 +149,7 @@ export function InventoryModule({ state, onUpdateState, lang }: InventoryProps) 
               type="number" 
               required
               value={stockLevel}
-              onChange={(e) => setStockLevel(Number(e.target.value))}
+              onChange={(e) => setStockLevel(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
             />
           </div>
@@ -162,7 +169,7 @@ export function InventoryModule({ state, onUpdateState, lang }: InventoryProps) 
               type="number" 
               required
               value={cost}
-              onChange={(e) => setCost(Number(e.target.value))}
+              onChange={(e) => setCost(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
             />
           </div>
@@ -171,7 +178,7 @@ export function InventoryModule({ state, onUpdateState, lang }: InventoryProps) 
             <input 
               type="number" 
               value={reorderLevel}
-              onChange={(e) => setReorderLevel(Number(e.target.value))}
+              onChange={(e) => setReorderLevel(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
             />
           </div>

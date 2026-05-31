@@ -26,8 +26,8 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
   const [tagNo, setTagNo] = useState('');
   const [breed, setBreed] = useState('Pure Boer (बोयर)');
   const [gender, setGender] = useState<'Male' | 'Female'>('Female');
-  const [ageMonths, setAgeMonths] = useState(12);
-  const [weightKg, setWeightKg] = useState(35);
+  const [ageMonths, setAgeMonths] = useState<number | ''>('');
+  const [weightKg, setWeightKg] = useState<number | ''>('');
   const [healthStatus, setHealthStatus] = useState<'Healthy' | 'Sick' | 'Under Treatment'>('Healthy');
   const [photoUrl, setPhotoUrl] = useState('https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&q=80&w=200');
 
@@ -35,7 +35,7 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
   const [matingDate, setMatingDate] = useState('');
   const [pregStatus, setPregStatus] = useState<'Not Mated' | 'Pregnant' | 'Expected Delivery'>('Pregnant');
   const [expectedDeliv, setExpectedDeliv] = useState('');
-  const [kidsCount, setKidsCount] = useState(0);
+  const [kidsCount, setKidsCount] = useState<number | ''>('');
 
   // Medical record state
   const [illDate, setIllDate] = useState('2026-05-29');
@@ -43,7 +43,7 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
   const [medsUsed, setMedsUsed] = useState('');
 
   // Sale records
-  const [salePrice, setSalePrice] = useState(25000);
+  const [salePrice, setSalePrice] = useState<number | ''>('');
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
 
@@ -58,8 +58,8 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
       tagNo,
       breed,
       gender,
-      ageMonths,
-      weightKg,
+      ageMonths: ageMonths === '' ? 0 : Number(ageMonths),
+      weightKg: weightKg === '' ? 0 : Number(weightKg),
       healthStatus,
       photoUrl,
       matingDate: undefined,
@@ -77,6 +77,8 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
     setSelectedGoatId(newGoat.id);
     setShowGoatForm(false);
     setTagNo('');
+    setAgeMonths('');
+    setWeightKg('');
   };
 
   const handleUpdateBreeding = (e: React.FormEvent) => {
@@ -90,7 +92,7 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
           matingDate: matingDate || undefined,
           pregnancyStatus: pregStatus,
           expectedDeliveryDate: expectedDeliv || undefined,
-          kidsBornCount: kidsCount
+          kidsBornCount: kidsCount === '' ? 0 : Number(kidsCount)
         };
       }
       return g;
@@ -102,6 +104,9 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
     });
 
     setShowBreedingForm(false);
+    setKidsCount('');
+    setMatingDate('');
+    setExpectedDeliv('');
   };
 
   const handleAddMedicalLog = (e: React.FormEvent) => {
@@ -139,11 +144,13 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
     e.preventDefault();
     if (!selectedGoat) return;
 
+    const numericPrice = salePrice === '' ? 0 : Number(salePrice);
+
     const transaction = {
       id: `tr-${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
       type: 'income' as const,
-      amount: salePrice,
+      amount: numericPrice,
       category: 'goat' as const,
       description: `Sold Goat ${selectedGoat.tagNo} (${selectedGoat.breed}) to ${buyerName}`
     };
@@ -160,7 +167,7 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
       sector: 'goat' as const,
       productOrdered: `Breeding Goat ${selectedGoat.tagNo}`,
       quantityOrdered: "1 Unit",
-      totalCost: salePrice,
+      totalCost: numericPrice,
       paymentStatus: "Paid" as const,
       deliveryStatus: "Delivered" as const,
       orderDate: new Date().toISOString().split('T')[0]
@@ -177,6 +184,7 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
     setSelectedGoatId(updatedGoats[0]?.id || '');
     setBuyerName('');
     setBuyerPhone('');
+    setSalePrice('');
   };
 
   const [confirmDeleteGoatId, setConfirmDeleteGoatId] = useState<string | null>(null);
@@ -288,8 +296,8 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
             <input 
               type="number" 
               value={ageMonths}
-              onChange={(e) => setAgeMonths(Number(e.target.value))}
-              className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+              onChange={(e) => setAgeMonths(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
             />
           </div>
           <div>
@@ -297,8 +305,8 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
             <input 
               type="number" 
               value={weightKg}
-              onChange={(e) => setWeightKg(Number(e.target.value))}
-              className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+              onChange={(e) => setWeightKg(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
             />
           </div>
           <div>
@@ -498,7 +506,7 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
                         <input 
                           type="number"
                           value={kidsCount}
-                          onChange={(e) => setKidsCount(Number(e.target.value))}
+                          onChange={(e) => setKidsCount(e.target.value === '' ? '' : Number(e.target.value))}
                           className="w-full bg-white border border-gray-300 rounded px-2.5 py-1 text-xs font-mono"
                         />
                       </div>
@@ -656,7 +664,7 @@ export function GoatModule({ state, onUpdateState, lang }: GoatProps) {
                       <input 
                         type="number"
                         value={salePrice}
-                        onChange={(e) => setSalePrice(Number(e.target.value))}
+                        onChange={(e) => setSalePrice(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-full bg-gray-55 border border-gray-300 rounded px-2.5 py-1 font-mono text-xs text-gray-950"
                       />
                     </div>

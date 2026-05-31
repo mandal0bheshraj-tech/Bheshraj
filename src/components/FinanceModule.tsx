@@ -53,20 +53,20 @@ export function FinanceModule({ state, onUpdateState, lang }: FinanceProps) {
 
   // New Transaction Form State
   const [transType, setTransType] = useState<'income' | 'expense'>('expense');
-  const [amount, setAmount] = useState(5000);
+  const [amount, setAmount] = useState<number | ''>('');
   const [category, setCategory] = useState<FinancialRecord['category']>('feed');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('2026-05-29');
 
   const handleAddTransaction = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !description) return;
+    if (amount === '' || !description) return;
 
     const newTrans: FinancialRecord = {
       id: `tr-${Date.now()}`,
       date,
       type: transType,
-      amount,
+      amount: Number(amount),
       category,
       description
     };
@@ -153,7 +153,7 @@ export function FinanceModule({ state, onUpdateState, lang }: FinanceProps) {
               type="number" 
               required
               value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
             />
           </div>

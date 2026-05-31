@@ -22,22 +22,22 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
 
   // New Pond state
   const [pondNo, setPondNo] = useState('');
-  const [pondSize, setPondSize] = useState(2500);
+  const [pondSize, setPondSize] = useState<number | ''>('');
   const [fishType, setFishType] = useState('Tilapia (तिलापिया)');
-  const [quantity, setQuantity] = useState(2000);
-  const [stockingDate, setStockingDate] = useState('2026-05-29');
+  const [quantity, setQuantity] = useState<number | ''>('');
+  const [stockingDate, setStockingDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Water Quality log state
-  const [phLevel, setPhLevel] = useState(7.2);
-  const [tempC, setTempC] = useState(24);
-  const [oxygenLevel, setOxygenLevel] = useState(6.0);
+  const [phLevel, setPhLevel] = useState<number | ''>('');
+  const [tempC, setTempC] = useState<number | ''>('');
+  const [oxygenLevel, setOxygenLevel] = useState<number | ''>('');
   const [waterChange, setWaterChange] = useState(false);
-  const [feedQuantity, setFeedQuantity] = useState(15);
-  const [deadCount, setDeadCount] = useState(0);
+  const [feedQuantity, setFeedQuantity] = useState<number | ''>('');
+  const [deadCount, setDeadCount] = useState<number | ''>('');
 
   // Harvest state
-  const [harvestWeight, setHarvestWeight] = useState(500);
-  const [marketPrice, setMarketPrice] = useState(380);
+  const [harvestWeight, setHarvestWeight] = useState<number | ''>('');
+  const [marketPrice, setMarketPrice] = useState<number | ''>('');
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
 
@@ -50,10 +50,10 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
     const newPond: FishPond = {
       id: `pond-${Date.now()}`,
       pondNumber: pondNo,
-      pondSizeSqFt: pondSize,
+      pondSizeSqFt: pondSize === '' ? 0 : Number(pondSize),
       fishType,
       stockingDate,
-      quantityStocked: quantity,
+      quantityStocked: quantity === '' ? 0 : Number(quantity),
       status: "active",
       waterLogs: [],
       harvests: []
@@ -67,21 +67,29 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
     setSelectedPondId(newPond.id);
     setShowPondForm(false);
     setPondNo('');
+    setPondSize('');
+    setQuantity('');
   };
 
   const handleAuditWater = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPond) return;
 
+    const numericPH = phLevel === '' ? 7.2 : Number(phLevel);
+    const numericTemp = tempC === '' ? 24 : Number(tempC);
+    const numericO2 = oxygenLevel === '' ? 6.0 : Number(oxygenLevel);
+    const numericFeed = feedQuantity === '' ? 0 : Number(feedQuantity);
+    const numericDead = deadCount === '' ? 0 : Number(deadCount);
+
     const newLog: WaterQualityLog = {
       id: `w-log-${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
-      phLevel,
-      temperatureC: tempC,
-      oxygenLevelDOmgl: oxygenLevel,
+      phLevel: numericPH,
+      temperatureC: numericTemp,
+      oxygenLevelDOmgl: numericO2,
       waterChangeDone: waterChange,
-      feedQuantityKg: feedQuantity,
-      mortalityCount: deadCount
+      feedQuantityKg: numericFeed,
+      mortalityCount: numericDead
     };
 
     // Deduct fish feed from stock
@@ -89,7 +97,7 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
       if (item.category === 'feed' && item.name.toLowerCase().includes('fish')) {
         return {
           ...item,
-          currentStock: Math.max(0, item.currentStock - Math.ceil(feedQuantity / 25)) // 25kg bag equivalent
+          currentStock: Math.max(0, item.currentStock - Math.ceil(numericFeed / 25)) // 25kg bag equivalent
         };
       }
       return item;
@@ -107,7 +115,7 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
 
     // Add reminder if pH is outside ideal boundaries (less than 6.5 or higher than 8.5)
     const updatedReminders = [...state.reminders];
-    if (phLevel < 6.5 || phLevel > 8.5) {
+    if (numericPH < 6.5 || numericPH > 8.5) {
       updatedReminders.push({
         id: `rem-${Date.now()}`,
         title: `CRITICAL pH Alert on ${selectedPond.pondNumber}: pH ${phLevel}`,
@@ -129,19 +137,26 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
 
     setShowWaterForm(false);
     setWaterChange(false);
-    setDeadCount(0);
+    setPhLevel('');
+    setTempC('');
+    setOxygenLevel('');
+    setFeedQuantity('');
+    setDeadCount('');
   };
 
   const handleRecordHarvest = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPond) return;
 
-    const totalRev = harvestWeight * marketPrice;
+    const numericWeight = harvestWeight === '' ? 0 : Number(harvestWeight);
+    const numericPrice = marketPrice === '' ? 0 : Number(marketPrice);
+    const totalRev = numericWeight * numericPrice;
+
     const newHarvest: FishHarvest = {
       id: `harv-${Date.now()}`,
       date: new Date().toISOString().split('T')[0],
-      weightHarvestedKg: harvestWeight,
-      pricePerKg: marketPrice,
+      weightHarvestedKg: numericWeight,
+      pricePerKg: numericPrice,
       totalRevenue: totalRev,
       buyerName,
       buyerPhone
@@ -153,7 +168,7 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
       type: 'income' as const,
       amount: totalRev,
       category: 'fish' as const,
-      description: `Harvested & sold ${harvestWeight}kg of fish from ${selectedPond.pondNumber} to ${buyerName}`
+      description: `Harvested & sold ${numericWeight}kg of fish from ${selectedPond.pondNumber} to ${buyerName}`
     };
 
     const updatedPonds = state.fishPonds.map(pond => {
@@ -174,6 +189,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
     });
 
     setShowHarvestForm(false);
+    setHarvestWeight('');
+    setMarketPrice('');
     setBuyerName('');
     setBuyerPhone('');
   };
@@ -252,8 +269,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
             <input 
               type="number" 
               value={pondSize}
-              onChange={(e) => setPondSize(Number(e.target.value))}
-              className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+              onChange={(e) => setPondSize(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
             />
           </div>
           <div>
@@ -262,7 +279,7 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
               type="text" 
               value={fishType}
               onChange={(e) => setFishType(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+              className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
             />
           </div>
           <div>
@@ -270,8 +287,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
             <input 
               type="number" 
               value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-              className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+              onChange={(e) => setQuantity(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
             />
           </div>
           <div>
@@ -403,8 +420,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                       type="number" 
                       step="0.1"
                       value={phLevel}
-                      onChange={(e) => setPhLevel(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+                      onChange={(e) => setPhLevel(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
                     />
                   </div>
                   <div>
@@ -413,8 +430,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                       type="number" 
                       step="0.1"
                       value={oxygenLevel}
-                      onChange={(e) => setOxygenLevel(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+                      onChange={(e) => setOxygenLevel(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
                     />
                   </div>
                   <div>
@@ -422,8 +439,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                     <input 
                       type="number" 
                       value={tempC}
-                      onChange={(e) => setTempC(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+                      onChange={(e) => setTempC(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
                     />
                   </div>
                   <div>
@@ -431,8 +448,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                     <input 
                       type="number" 
                       value={feedQuantity}
-                      onChange={(e) => setFeedQuantity(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+                      onChange={(e) => setFeedQuantity(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
                     />
                   </div>
                   <div>
@@ -440,8 +457,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                     <input 
                       type="number" 
                       value={deadCount}
-                      onChange={(e) => setDeadCount(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
+                      onChange={(e) => setDeadCount(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
                     />
                   </div>
                   <div className="flex items-center pt-5">
@@ -476,8 +493,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                     <input 
                       type="number" 
                       value={harvestWeight}
-                      onChange={(e) => setHarvestWeight(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
+                      onChange={(e) => setHarvestWeight(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
                     />
                   </div>
                   <div>
@@ -485,8 +502,8 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                     <input 
                       type="number" 
                       value={marketPrice}
-                      onChange={(e) => setMarketPrice(Number(e.target.value))}
-                      className="w-full bg-gray-50 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
+                      onChange={(e) => setMarketPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900 font-mono"
                     />
                   </div>
                   <div>
@@ -513,7 +530,7 @@ export function FishModule({ state, onUpdateState, lang }: FishProps) {
                 </div>
                 <div className="bg-sky-50 p-3 rounded text-right">
                   <span className="text-xs text-sky-850 mr-4 font-semibold">Total Revenue:</span>
-                  <span className="text-base font-extrabold text-sky-700">Rs. {harvestWeight * marketPrice}</span>
+                  <span className="text-base font-extrabold text-sky-700">Rs. {Number(harvestWeight) * Number(marketPrice)}</span>
                 </div>
                 <div className="text-right">
                   <button type="submit" className="bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs px-5 py-2 rounded-lg cursor-pointer">

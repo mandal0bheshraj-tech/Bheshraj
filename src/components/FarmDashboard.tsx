@@ -341,7 +341,7 @@ export function FarmDashboard({ state, onUpdateState, setActiveTab, lang }: Dash
               Saroja Krishi Tatha Pashupalan Firm • Barju-4 Sunsari, Nepal
             </p>
             <p className="text-[10px] text-teal-300/80 font-mono uppercase tracking-widest leading-none pt-1">
-              ESTD. 2078 BS (2021 AD) • Authorized Register Ledger System
+              ESTD. 2076 BS (2019 AD) • Authorized Register Ledger System
             </p>
           </div>
         </div>

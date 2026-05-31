@@ -328,7 +328,7 @@ export default function App() {
               <SarojaLogo size={85} showLabels={false} />
               <div className="mt-1 text-center">
                 <span className="text-[10px] font-black tracking-widest uppercase text-amber-400 block leading-none">SAROJA FIRM</span>
-                <span className="text-[8px] text-teal-300 font-black tracking-widest uppercase mt-1 block leading-none">ESTD. 2078 BS</span>
+                <span className="text-[8px] text-teal-300 font-black tracking-widest uppercase mt-1 block leading-none">ESTD. 2076 BS</span>
               </div>
             </div>
 
@@ -412,7 +412,7 @@ export default function App() {
                     <SarojaLogo size={65} showLabels={false} />
                     <div className="mt-1 text-center">
                       <span className="text-[10px] font-black tracking-widest uppercase text-amber-400 block leading-none">SAROJA FIRM</span>
-                      <span className="text-[8px] text-teal-300 font-black tracking-widest uppercase mt-1 block leading-none">ESTD. 2078 BS</span>
+                      <span className="text-[8px] text-teal-300 font-black tracking-widest uppercase mt-1 block leading-none">ESTD. 2076 BS</span>
                     </div>
                   </div>
 

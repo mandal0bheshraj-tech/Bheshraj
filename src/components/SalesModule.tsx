@@ -38,8 +38,8 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
   const [address, setAddress] = useState('');
   const [farmingSector, setFarmingSector] = useState<'poultry' | 'fish' | 'goat' | 'pigeon'>('poultry');
   const [productDetails, setProductDetails] = useState('');
-  const [quantity, setQuantity] = useState('200 kg');
-  const [totalCost, setTotalCost] = useState(65000);
+  const [quantity, setQuantity] = useState('');
+  const [totalCost, setTotalCost] = useState<number | ''>('');
   const [payStatus, setPayStatus] = useState<'Paid' | 'Pending'>('Pending');
 
   // QR Camera Scanner states
@@ -169,6 +169,8 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
     e.preventDefault();
     if (!customerName || !productDetails) return;
 
+    const numericCost = totalCost === '' ? 0 : Number(totalCost);
+
     const newOrder: CustomerOrder = {
       id: `ord-${Date.now()}`,
       customerName,
@@ -177,7 +179,7 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
       sector: farmingSector,
       productOrdered: productDetails,
       quantityOrdered: quantity,
-      totalCost: totalCost,
+      totalCost: numericCost,
       paymentStatus: payStatus,
       deliveryStatus: "Pending",
       orderDate: new Date().toISOString().split('T')[0]
@@ -190,7 +192,7 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
         id: `tr-${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
         type: 'income',
-        amount: totalCost,
+        amount: numericCost,
         category: farmingSector as any,
         description: `Cash collection of Order from ${customerName}`
       });
@@ -445,7 +447,7 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
               type="number" 
               required
               value={totalCost}
-              onChange={(e) => setTotalCost(Number(e.target.value))}
+              onChange={(e) => setTotalCost(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-2.5 py-1.5 text-xs text-gray-950 font-mono"
             />
           </div>
@@ -804,6 +806,7 @@ export function SalesModule({ state, onUpdateState, lang }: SalesProps) {
                     <video 
                       ref={videoRef} 
                       className="absolute inset-0 w-full h-full object-cover pointer-events-none" 
+                      autoPlay
                       playsInline 
                       muted 
                     />

@@ -294,6 +294,22 @@ export function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
                 {t.localSandboxDesc}
               </p>
 
+              {/* Dynamic educational notice for external devices / domains */}
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3.5 space-y-1.5 text-left shrink-0">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <strong className="text-[11px] font-extrabold uppercase tracking-wide">
+                    {lang === 'en' ? "Running on other devices?" : "अन्य उपकरणमा चलाउँदै हुनुहुन्छ?"}
+                  </strong>
+                </div>
+                <p className="text-[10px] leading-relaxed text-amber-800 font-medium font-sans">
+                  {lang === 'en' 
+                    ? "If you are opening this farm app on other devices (like a mobile phone), Google Sign-In or Mobile OTP may fail due to Firebase Authorized Domain restrictions. Please use 'Email & Password' to create/login your account, or 'Guest Sandbox' which works flawlessly and immediately on any device!"
+                    : "यदि तपाइँ यो एप अन्य उपकरण (जस्तै मोबाइल) मा खोल्दै हुनुहुन्छ भने, गुगल वा फोन लगइन विफल हुन सक्छ। कृपया 'Email & Password' प्रयोग गरेर खाता दर्ता/लगइन गर्नुहोस्, वा 'Guest Sandbox' प्रयोग गर्नुहोस्, जसले सबै उपकरणहरूमा तुरुन्तै काम गर्दछ!"
+                  }
+                </p>
+              </div>
+
               <div className="space-y-2.5">
                 {/* 1. Google Link */}
                 <button

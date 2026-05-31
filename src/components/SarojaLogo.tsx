@@ -96,7 +96,7 @@ export function SarojaLogo({ size = 200, className = '', opacity = 1, showLabels
           <circle cx="90" cy="40" r="3.5" />
         </g>
 
-        {/* 3. Text Section "EST. IN BS 2078" */}
+        {/* 3. Text Section "EST. IN BS 2076" */}
         <text 
           x="250" 
           y="105" 
@@ -107,7 +107,7 @@ export function SarojaLogo({ size = 200, className = '', opacity = 1, showLabels
           textAnchor="middle" 
           letterSpacing="2.5"
         >
-          EST. IN BS 2078
+          EST. IN BS 2076
         </text>
 
         {/* 4. Banner & "SAROJA" Typography */}

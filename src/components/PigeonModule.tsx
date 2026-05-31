@@ -21,9 +21,9 @@ export function PigeonModule({ state, onUpdateState, lang }: PigeonProps) {
   // New Pair Form State
   const [breed, setBreed] = useState('Fantail (लक्का)');
   const [pairId, setPairId] = useState('');
-  const [eggCount, setEggCount] = useState(2);
-  const [hatchRate, setHatchRate] = useState(85);
-  const [babyCount, setBabyCount] = useState(2);
+  const [eggCount, setEggCount] = useState<number | ''>('');
+  const [hatchRate, setHatchRate] = useState<number | ''>('');
+  const [babyCount, setBabyCount] = useState<number | ''>('');
   const [hatchDate, setHatchDate] = useState('2026-06-10');
 
   const selectedPair = state.pigeons.find(p => p.id === selectedPairId);
@@ -32,16 +32,20 @@ export function PigeonModule({ state, onUpdateState, lang }: PigeonProps) {
     e.preventDefault();
     if (!pairId) return;
 
+    const numEggs = eggCount === '' ? 0 : Number(eggCount);
+    const numHatch = hatchRate === '' ? 0 : Number(hatchRate);
+    const numBabies = babyCount === '' ? 0 : Number(babyCount);
+
     const newPair: PigeonRecord = {
       id: `pig-${Date.now()}`,
       breed,
       pairId,
-      eggProduction: eggCount * 6, // overall prediction
-      hatchRatePercent: hatchRate,
+      eggProduction: numEggs * 6, // overall prediction
+      hatchRatePercent: numHatch,
       healthStatus: "Healthy",
-      eggsLaidCount: eggCount,
+      eggsLaidCount: numEggs,
       hatchDate: hatchDate || undefined,
-      babyPigeonsCount: babyCount,
+      babyPigeonsCount: numBabies,
       vaccines: ["Pox Vaccine"]
     };
 
@@ -53,6 +57,9 @@ export function PigeonModule({ state, onUpdateState, lang }: PigeonProps) {
     setSelectedPairId(newPair.id);
     setShowPairForm(false);
     setPairId('');
+    setEggCount('');
+    setHatchRate('');
+    setBabyCount('');
   };
 
   const [confirmDeletePairId, setConfirmDeletePairId] = useState<string | null>(null);
@@ -198,7 +205,7 @@ export function PigeonModule({ state, onUpdateState, lang }: PigeonProps) {
             <input 
               type="number" 
               value={eggCount}
-              onChange={(e) => setEggCount(Number(e.target.value))}
+              onChange={(e) => setEggCount(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-3 py-1.5 text-xs text-gray-900"
             />
           </div>
@@ -207,7 +214,7 @@ export function PigeonModule({ state, onUpdateState, lang }: PigeonProps) {
             <input 
               type="number" 
               value={hatchRate}
-              onChange={(e) => setHatchRate(Number(e.target.value))}
+              onChange={(e) => setHatchRate(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-900"
             />
           </div>
@@ -216,7 +223,7 @@ export function PigeonModule({ state, onUpdateState, lang }: PigeonProps) {
             <input 
               type="number" 
               value={babyCount}
-              onChange={(e) => setBabyCount(Number(e.target.value))}
+              onChange={(e) => setBabyCount(e.target.value === '' ? '' : Number(e.target.value))}
               className="w-full bg-gray-55 border border-gray-300 rounded px-2 py-1.5 text-xs text-gray-900"
             />
           </div>
